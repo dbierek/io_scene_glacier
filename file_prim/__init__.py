@@ -1057,6 +1057,77 @@ class GLACIER_PT_PrimMaterialClassFlagsPanel(bpy.types.Panel):
             row.prop(item, "value", text=item.name)
 
 
+class ImportScenario(bpy.types.Operator, ImportHelper):
+    """Load a prims.json scenario file"""
+
+    bl_idname = "import_scenario.json"
+    bl_label = "Import Scenario Json"
+    filename_ext = ".json"
+
+    filter_glob: StringProperty(
+        default="*.json",
+        options={"HIDDEN"},
+    )
+
+    files: CollectionProperty(
+        name="File Path",
+        type=bpy.types.OperatorFileListElement,
+    )
+
+    use_rig: BoolProperty(
+        name="Use BoneRig", description="Use a BORG file on the chosen prim file"
+    )
+
+    rig_filepath: StringProperty(
+        name="BoneRig Path",
+        description="Path to the BoneRig (BORG) file",
+    )
+
+    use_aloc: BoolProperty(
+        name="Use Collision", description="Use a ALOC file on the chosen prim file"
+    )
+
+    aloc_filepath: StringProperty(
+        name="Collision Path",
+        description="Path to the Collision (ALOC) file",
+    )
+
+    def draw(self, context):
+        if ".json" not in self.filepath.lower():
+            return
+
+        layout = self.layout
+
+        layout.row(align=True)
+
+    def execute(self, context):
+        from . import bl_import_scenario
+        scenario_paths = [
+            "%s\\%s" % (os.path.dirname(self.filepath), scenarioPaths.name)
+            for scenarioPaths in self.files
+        ]
+        for scenario_path in scenario_paths:
+            collection = bpy.data.collections.new(
+                bpy.path.display_name_from_filepath(scenario_path)
+            )
+            context.scene.collection.children.link(collection)
+
+            scenario = bl_import_scenario.load_scenario(
+                self, context, collection, scenario_path
+            )
+
+            if scenario == 1:
+                BlenderUI.MessageBox(
+                    'Failed to import scenario "%s"' % scenario_path, "Importing error", "ERROR"
+                )
+                return {"CANCELLED"}
+
+            layer = bpy.context.view_layer
+            layer.update()
+
+        return {"FINISHED"}
+
+
 classes = [
     PrimProperties,
     PrimCollectionProperties,
@@ -1082,6 +1153,7 @@ classes = [
     GLACIER_PT_PhysicsPropertiesPanel,
     ImportPRIM,
     ExportPRIM,
+    ImportScenario,
 ]
 
 
@@ -1089,6 +1161,7 @@ def register():
     for c in classes:
         bpy.utils.register_class(c)
     bpy.types.TOPBAR_MT_file_import.append(menu_func_import)
+    bpy.types.TOPBAR_MT_file_import.append(menu_func_import_scenario)
     bpy.types.TOPBAR_MT_file_export.append(menu_func_export)
     bpy.types.Mesh.prim_properties = PointerProperty(type=PrimProperties)
     bpy.types.Collection.prim_collection_properties = PointerProperty(
@@ -1104,6 +1177,7 @@ def unregister():
     for c in reversed(classes):
         bpy.utils.unregister_class(c)
     bpy.types.TOPBAR_MT_file_import.remove(menu_func_import)
+    bpy.types.TOPBAR_MT_file_import.remove(menu_func_import_scenario)
     bpy.types.TOPBAR_MT_file_export.remove(menu_func_export)
     del bpy.types.Mesh.prim_properties
     del bpy.types.Collection.prim_collection_properties
@@ -1112,19 +1186,23 @@ def unregister():
 
 
 def menu_func_import(self, context):
-    self.layout.operator(ImportPRIM.bl_idname, text="Glacier RenderPrimitve (.prim)")
+    self.layout.operator(ImportPRIM.bl_idname, text="Glacier RenderPrimitive (.prim)")
 
 
 def menu_func_export(self, context):
     exportprim_instance = self.layout.operator(
-        ExportPRIM.bl_idname, text="Glacier RenderPrimitve (.prim)"
+        ExportPRIM.bl_idname, text="Glacier RenderPrimitive (.prim)"
     )
     exportprim_instance.export_scene = False
     exportprim_instance2 = self.layout.operator(
         ExportPRIM.bl_idname,
-        text="Glacier RenderPrimitve (prims, materials, textures, geomentities and collision)",
+        text="Glacier RenderPrimitive (prims, materials, textures, geomentities and collision)",
     )
     exportprim_instance2.export_scene = True
+
+
+def menu_func_import_scenario(self, context):
+    self.layout.operator(ImportScenario.bl_idname, text="Glacier Scenario Prim Transforms (.json)")
 
 
 if __name__ == "__main__":
