@@ -13,7 +13,7 @@ def load_scenario(operator, context, collection, path_to_prims_json):
     f.close()
     transforms = {}
     for hash_and_entity in data['entities']:
-        prim_hash = hash_and_entity['primHash']
+        prim_hash = hash_and_entity['hash']
         entity = hash_and_entity['entity']
         transform = {"position": entity["position"], "rotate": entity["rotation"],
                      "scale": entity["scale"]["data"]}
