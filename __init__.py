@@ -10,6 +10,7 @@ bl_info = {
 
 import bpy
 from . import file_prim
+from . import file_aloc
 from . import file_mjba
 from . import file_borg
 
@@ -83,6 +84,7 @@ classes = [GlacierSettings, GLACIER_PT_settingsPanel]
 
 modules = [
     file_prim,
+    file_aloc,
     # file_mjba, # WIP module. enable at own risk
     file_borg,
 ]

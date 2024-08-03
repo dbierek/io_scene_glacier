@@ -3,6 +3,8 @@ import os
 import sys
 import ctypes
 
+from .. import io_binary
+
 
 class PhysicsDataType(enum.IntEnum):
     NONE = 0
@@ -67,10 +69,33 @@ class PhysicsCollisionSettings(ctypes.Structure):
     ]
 
 
+class ConvexMeshData:
+    def __init__(self):
+        self.vertices = []
+
+
+class ConvexMesh:
+    def __init__(self):
+        self.collision_layer = 0
+        self.position = [0.0, 0.0, 0.0]
+        self.rotation = [0.0, 0.0, 0.0, 0.0]
+        self.vertex_count = 0
+        self.data = ConvexMeshData()
+
 class Physics:
     def __init__(self):
         self.data_type = PhysicsDataType.NONE
         self.collision_type = PhysicsCollisionType.NONE
+        self.convex_meshes = []
+        self.convex_mesh_count = 0
+        self.triangle_meshes = []
+        self.triangle_mesh_count = 0
+        self.primitive_boxes = []
+        self.primitive_boxes_count = 0
+        self.primitive_capsules = []
+        self.primitive_capsules_count = 0
+        self.primitive_spheres = []
+        self.primitive_spheres_count = 0
         if not os.environ["PATH"].startswith(
             os.path.abspath(os.path.dirname(__file__))
         ):
@@ -129,6 +154,37 @@ class Physics:
 
     def write(self, filepath):
         self.lib.Write(filepath)
+
+    def read(self, filepath):
+        fp = os.fsencode(filepath)
+        file = open(fp, "rb")
+        br = io_binary.BinaryReader(file)
+        self.data_type = br.readUInt()
+        self.collision_type = br.readUInt()
+        br.seek(23)
+        if self.data_type == PhysicsDataType.CONVEX_MESH:
+            self.convex_mesh_count = br.readUInt()
+            # offset = 27
+            for _ in range(self.convex_mesh_count):
+                convex_mesh = ConvexMesh()
+                convex_mesh.collision_layer = br.readUInt()
+                convex_mesh.position = br.readFloatVec(3)
+                convex_mesh.rotation = br.readFloatVec(4)
+                br.seek(99)
+                convex_mesh.vertex_count = br.readUInt()
+                convex_mesh.polygon_count = br.readUInt()
+                convex_mesh.num_frames = br.readUInt()
+                br.readUInt()
+                br.readUInt()
+                vertices = []
+                for __ in range(convex_mesh.vertex_count):
+                    vertices.append(br.readFloatVec(3))
+                convex_mesh.data.vertices = vertices
+                self.convex_meshes.append(convex_mesh)
+        else:
+            raise Exception("Only Convex Mesh ALOC types are supported currently")
+
+        br.close()
 
     def set_collision_settings(self, settings):
         self.lib.SetCollisionSettings(ctypes.byref(settings))

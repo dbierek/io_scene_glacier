@@ -42,11 +42,11 @@ def load_scenario(operator, context, collection, path_to_prims_json):
             print("Error Loading prim:")
             print(prim_hash)
             return 1
-        highest_lod = -1
+        lowest_lod = 9
         for obj in objects:
             for j in range(0, 8):
-                if obj.data['prim_properties']['lod'][j] == 1 and highest_lod < j:
-                    highest_lod = j
+                if obj.data['prim_properties']['lod'][j] == 1 and lowest_lod > j:
+                    lowest_lod = j
 
         t = transforms[prim_hash]
         t_size = len(t)
@@ -58,7 +58,7 @@ def load_scenario(operator, context, collection, path_to_prims_json):
             r["roll"] = math.pi * 2 - r["roll"]
             print("Transforming prim:" + prim_hash + " #" + str(i))
             for obj in objects:
-                if obj.data['prim_properties']['lod'][highest_lod] == 0:
+                if obj.data['prim_properties']['lod'][lowest_lod] == 0:
                     continue
                 if i != 0:
                     cur = obj.copy()
