@@ -80,6 +80,9 @@ class ConvexMesh:
         self.position = [0.0, 0.0, 0.0]
         self.rotation = [0.0, 0.0, 0.0, 0.0]
         self.vertex_count = 0
+        self.edge_count = 0
+        self.polygon_count = 0
+        self.polygons_vertex_count = 0
         self.data = ConvexMeshData()
 
 
@@ -209,12 +212,11 @@ class Physics:
                 convex_mesh.collision_layer = br.readUInt()
                 convex_mesh.position = br.readFloatVec(3)
                 convex_mesh.rotation = br.readFloatVec(4)
-                br.seek(99)
+                br.seek(103)
                 convex_mesh.vertex_count = br.readUInt()
+                convex_mesh.edge_count = br.readUInt()
                 convex_mesh.polygon_count = br.readUInt()
-                convex_mesh.num_frames = br.readUInt()
-                br.readUInt()
-                br.readUInt()
+                convex_mesh.polygons_vertex_count = br.readUInt()
                 vertices = []
                 for __ in range(convex_mesh.vertex_count):
                     vertices.append(br.readFloatVec(3))
