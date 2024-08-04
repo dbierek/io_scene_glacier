@@ -59,16 +59,17 @@ class ImportALOC(bpy.types.Operator, ImportHelper):
             for aloc_paths in self.files
         ]
         for aloc_path in aloc_paths:
-            collection = bpy.data.collections.new(
-                bpy.path.display_name_from_filepath(aloc_path)
-            )
-            context.scene.collection.children.link(collection)
+            # collection = bpy.data.collections.new(
+            #     bpy.path.display_name_from_filepath(aloc_path)
+            # )
 
-            scenario = bl_import_aloc.load_aloc(
-                self, context, collection, aloc_path
+            aloc_result = bl_import_aloc.load_aloc(
+                self, context, aloc_path
             )
 
-            if scenario == 1:
+            # context.scene.collection.children.link(collection)
+
+            if aloc_result == 1:
                 BlenderUI.MessageBox(
                     'Failed to import scenario "%s"' % aloc_path, "Importing error", "ERROR"
                 )
