@@ -224,10 +224,10 @@ class Physics:
                 self.convex_meshes.append(convex_mesh)
         elif self.data_type == PhysicsDataType.TRIANGLE_MESH:
             self.triangle_mesh_count = br.readUInt()
-            br.seek(55)
             for _ in range(self.triangle_mesh_count):
                 triangle_mesh = TriangleMesh()
                 triangle_mesh.collision_layer = br.readUInt()
+                br.seek(55)
                 triangle_mesh.vertex_count = br.readUInt()
                 triangle_mesh.triangle_count = br.readUInt()
                 vertices = []

@@ -70,7 +70,7 @@ def load_aloc(operator, context, filepath):
         bm = bmesh.new()
         for v in aloc.triangle_meshes[0].data.vertices:
             bm.verts.new(v)
-        mesh = bpy.context.object.data
+        mesh = obj.data
         convex_hull(bm, mesh, obj, collection, context)
     elif aloc.data_type == aloc_format.PhysicsDataType.PRIMITIVE:
         print("Primitive Type")
