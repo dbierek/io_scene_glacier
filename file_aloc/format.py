@@ -3,6 +3,8 @@ import os
 import sys
 import ctypes
 
+from .. import io_binary
+
 
 class PhysicsDataType(enum.IntEnum):
     NONE = 0
@@ -67,10 +69,76 @@ class PhysicsCollisionSettings(ctypes.Structure):
     ]
 
 
+class ConvexMeshData:
+    def __init__(self):
+        self.vertices = []
+
+
+class ConvexMesh:
+    def __init__(self):
+        self.collision_layer = 0
+        self.position = [0.0, 0.0, 0.0]
+        self.rotation = [0.0, 0.0, 0.0, 0.0]
+        self.vertex_count = 0
+        self.edge_count = 0
+        self.polygon_count = 0
+        self.polygons_vertex_count = 0
+        self.data = ConvexMeshData()
+
+
+class TriangleMeshData:
+    def __init__(self):
+        self.vertices = []
+
+
+class TriangleMesh:
+    def __init__(self):
+        self.collision_layer = 0
+        self.vertex_count = 0
+        self.triangle_count = 0
+        self.data = TriangleMeshData()
+
+
+class PrimitiveBox:
+    def __init__(self):
+        self.half_extents = [0.0, 0.0, 0.0]
+        self.collision_layer = 0
+        self.position = [0.0, 0.0, 0.0]
+        self.rotation = [0.0, 0.0, 0.0, 0.0]
+
+
+class PrimitiveCapsule:
+    def __init__(self):
+        self.radius = 0.0
+        self.length = 0.0
+        self.collision_layer = 0
+        self.position = [0.0, 0.0, 0.0]
+        self.rotation = [0.0, 0.0, 0.0, 0.0]
+
+
+class PrimitiveSphere:
+    def __init__(self):
+        self.radius = 0.0
+        self.collision_layer = 0
+        self.position = [0.0, 0.0, 0.0]
+        self.rotation = [0.0, 0.0, 0.0, 0.0]
+
+
 class Physics:
     def __init__(self):
         self.data_type = PhysicsDataType.NONE
         self.collision_type = PhysicsCollisionType.NONE
+        self.convex_meshes = []
+        self.convex_mesh_count = 0
+        self.triangle_meshes = []
+        self.triangle_mesh_count = 0
+        self.primitive_count = []
+        self.primitive_boxes = []
+        self.primitive_boxes_count = 0
+        self.primitive_capsules = []
+        self.primitive_capsules_count = 0
+        self.primitive_spheres = []
+        self.primitive_spheres_count = 0
         if not os.environ["PATH"].startswith(
             os.path.abspath(os.path.dirname(__file__))
         ):
@@ -129,6 +197,85 @@ class Physics:
 
     def write(self, filepath):
         self.lib.Write(filepath)
+
+    def read(self, filepath):
+        fp = os.fsencode(filepath)
+        file = open(fp, "rb")
+        br = io_binary.BinaryReader(file)
+        self.data_type = br.readUInt()
+        self.collision_type = br.readUInt()
+        br.seek(23)
+        if self.data_type == PhysicsDataType.CONVEX_MESH:
+            self.convex_mesh_count = br.readUInt()
+            for _ in range(self.convex_mesh_count):
+                convex_mesh = ConvexMesh()
+                convex_mesh.collision_layer = br.readUInt()
+                convex_mesh.position = br.readFloatVec(3)
+                convex_mesh.rotation = br.readFloatVec(4)
+                br.seek(103)
+                convex_mesh.vertex_count = br.readUInt()
+                convex_mesh.edge_count = br.readUInt()
+                convex_mesh.polygon_count = br.readUInt()
+                convex_mesh.polygons_vertex_count = br.readUInt()
+                vertices = []
+                for __ in range(convex_mesh.vertex_count):
+                    vertices.append(br.readFloatVec(3))
+                convex_mesh.data.vertices = vertices
+                self.convex_meshes.append(convex_mesh)
+        elif self.data_type == PhysicsDataType.TRIANGLE_MESH:
+            self.triangle_mesh_count = br.readUInt()
+            for _ in range(self.triangle_mesh_count):
+                triangle_mesh = TriangleMesh()
+                triangle_mesh.collision_layer = br.readUInt()
+                br.seek(55)
+                triangle_mesh.vertex_count = br.readUInt()
+                triangle_mesh.triangle_count = br.readUInt()
+                vertices = []
+                for __ in range(triangle_mesh.vertex_count):
+                    vertices.append(br.readFloatVec(3))
+                triangle_mesh.data.vertices = vertices
+                self.triangle_meshes.append(triangle_mesh)
+        elif self.data_type == PhysicsDataType.PRIMITIVE:
+            print("Found primitive")
+            primitive_count = br.readUInt()
+            for _ in range(primitive_count):
+                primitive_type = br.readString(3).decode("utf-8")
+                print("Primitive type: " + primitive_type)
+                br.readString(1)
+                if primitive_type == "BOX":
+                    print("Found Primitive Box")
+                    self.primitive_boxes_count += 1
+                    primitive_box = PrimitiveBox()
+                    primitive_box.half_extents = br.readFloatVec(3)
+                    primitive_box.collision_layer = br.readUInt64()
+                    primitive_box.position = br.readFloatVec(3)
+                    primitive_box.rotation = br.readFloatVec(4)
+                    self.primitive_boxes.append(primitive_box)
+                    print("Primitive Box: Pos: " + str(primitive_box.position[0]) + str(primitive_box.position[1]) + str(primitive_box.position[2]))
+                    print("Primitive Box: half_extents: " + str(primitive_box.half_extents[0]) + str(primitive_box.half_extents[1]) + str(primitive_box.half_extents[2]))
+                    print("Primitive Box: rotation: " + str(primitive_box.rotation[0]) + str(primitive_box.rotation[1]) + str(primitive_box.rotation[2]) + str(primitive_box.rotation[3]))
+                    print("Primitive Box: collision_layer: " + str(primitive_box.collision_layer))
+
+                elif primitive_type == "CAP":
+                    self.primitive_capsules_count += 1
+                    primitive_capsule = PrimitiveCapsule()
+                    primitive_capsule.radius = br.readFloat()
+                    primitive_capsule.length = br.readFloat()
+                    primitive_capsule.collision_layer = br.readUInt64()
+                    primitive_capsule.position = br.readFloatVec(3)
+                    primitive_capsule.rotation = br.readFloatVec(4)
+                    self.primitive_capsules.append(primitive_capsule)
+                elif primitive_type == "SPH":
+                    self.primitive_spheres_count += 1
+                    primitive_sphere = PrimitiveSphere()
+                    primitive_sphere.radius = br.readFloat()
+                    primitive_sphere.collision_layer = br.readUInt64()
+                    primitive_sphere.position = br.readFloatVec(3)
+                    primitive_sphere.rotation = br.readFloatVec(4)
+                    self.primitive_spheres.append(primitive_sphere)
+            self.primitive_count = self.primitive_capsules_count + self.primitive_boxes_count + self.primitive_spheres_count
+
+        br.close()
 
     def set_collision_settings(self, settings):
         self.lib.SetCollisionSettings(ctypes.byref(settings))
