@@ -259,17 +259,21 @@ def read_triangle_mesh(br):
     br.readUByteVec(16)  # \0\0\0\0NXS.MESH....\u{15}\0\0\0
     # 47
     br.readUByteVec(4)  # midPhaseId
+    print("Reading serial_flags. Current offset: " + str(br.tell()))
+
     triangle_mesh.serial_flags = br.readInt()
+    # Example Serial Flag: 6 = 0110: IMSF_FACE_REMAP | IMSF_8BIT_INDICES
     # IMSF_MATERIALS = (1 << 0), // ! < if set, the cooked mesh file contains per-triangle material indices
     # IMSF_FACE_REMAP        =    (1 << 1), // ! < if set, the cooked mesh file contains a remap table
     # IMSF_8BIT_INDICES    =    (1 << 2), // ! < if set, the cooked mesh file contains 8bit indices (topology)
     # IMSF_16BIT_INDICES    =    (1 << 3), // ! < if set, the cooked mesh file contains 16bit indices (topology)
     # IMSF_ADJACENCIES    =    (1 << 4), // ! < if set, the cooked mesh file contains adjacency structures
     # IMSF_GRB_DATA        =    (1 << 5) // ! < if set, the cooked mesh file contains GRB data structures
+    print("Reading Vertex_count: Current offset: " + str(br.tell()))
     triangle_mesh.vertex_count = br.readUInt()
     print("vertex_count: " + str(triangle_mesh.vertex_count))
     triangle_mesh.triangle_count = br.readUInt()
-    print("vertex_count: " + str(triangle_mesh.triangle_count))
+    print("triangle_count: " + str(triangle_mesh.triangle_count))
     vertices = []
     for vertex_index in range(triangle_mesh.vertex_count):
         vertex = br.readFloatVec(3)
@@ -278,42 +282,146 @@ def read_triangle_mesh(br):
     triangle_mesh.vertices = vertices
     # Check serial flag
     triangle_data = []
-    is_8bit = triangle_mesh.serial_flags & (1 << 2)
-    is_16bit = triangle_mesh.serial_flags & (1 << 3)
+    print("serial Flags: " + str(triangle_mesh.serial_flags))
+    is_8bit = (triangle_mesh.serial_flags >> 2) & 1 == 1
+    print("is_8bit: " + str(is_8bit))
+    is_16bit = (triangle_mesh.serial_flags >> 3) & 1 == 1
+    print("is_16bit: " + str(is_16bit))
     if is_8bit:
+        print("is_8bit. Reading triangle bytes")
         for triangle_index in range(triangle_mesh.triangle_count * 3):
             triangle_byte = br.readUByte()
             print("Triangle_byte: " + str(triangle_byte))
             triangle_data.append(triangle_byte)
     elif is_16bit:
+        print("is_16bit. Reading triangle byte pairs")
         for triangle_index in range(triangle_mesh.triangle_count * 3):
             triangle_byte_pair = br.readUByteVec(2)
             print("Triangle_byte_pair: " + str(triangle_byte_pair))
             triangle_data.append(triangle_byte_pair)
     else:
+        print("Not 8 or 16 bit. Reading triangle ints")
         for triangle_index in range(triangle_mesh.triangle_count * 3):
             triangle_int = br.readInt()
             print("Triangle_Int: " + str(triangle_int))
             triangle_data.append(triangle_int)
     triangle_mesh.triangle_data = triangle_data
-    material_indices = triangle_mesh.serial_flags & (1 << 0)
+    material_indices = (triangle_mesh.serial_flags >> 0) & 1 == 1
+    print("material_indices: " + str(material_indices))
+
     if material_indices:
         br.readUByteVec(2 * triangle_mesh.triangle_count)  # material_indices
-    face_remap = triangle_mesh.serial_flags & (1 << 1)
+    face_remap = (triangle_mesh.serial_flags >> 1) & 1 == 1
+    print("face_remap: " + str(face_remap))
+
     if face_remap:
-        max_id = br.readByte()
+        max_id = br.readInt()
+        print("max_id: " + str(max_id))
         if is_8bit:
-            br.readUByteVec(triangle_mesh.vertex_count)
+            face_remap_val = br.readUByteVec(triangle_mesh.triangle_count)
+            print("face_remap_val 8bit: " + str(face_remap_val))
+
         elif is_16bit:
-            br.readUByteVec(triangle_mesh.vertex_count * 2)
+            face_remap_val = br.readUByteVec(triangle_mesh.triangle_count * 2)
+            print("face_remap_val 16bit: " + str(face_remap_val))
         else:
             for triangle_index in range(triangle_mesh.triangle_count):
-                br.readInt()
-    adjacencies = triangle_mesh.serial_flags & (1 << 4)
+                face_remap_val = br.readInt()
+                print("face_remap_val int: " + str(face_remap_val))
+    adjacencies = (triangle_mesh.serial_flags >> 4) & 1 == 1
+    print("adjacencies: " + str(adjacencies))
     if adjacencies:
         for triangle_index in range(triangle_mesh.triangle_count * 3):
             br.readInt()
+    # Write midPhaseStructure. Is it BV4? -> BV4TriangleMeshBuilder::saveMidPhaseStructure
+    print("Reading BV4: Current offset: " + str(br.tell()))
+    bv4 = br.readString(3)  # "BV4."
+    br.readUByte()
+    print("Should say bv4: " + str(bv4))
+    bv4_version = br.readIntBigEndian()  # Bv4 Structure Version. Is always 1, so the midPhaseStructure will be bigEndian
+    print("BV4 version. Should be 1: " + str(bv4_version))
+    br.readFloat()  # mData.mBV4Tree.mLocalBounds.mCenter.x
+    br.readFloat()  # mData.mBV4Tree.mLocalBounds.mCenter.y
+    br.readFloat()  # mData.mBV4Tree.mLocalBounds.mCenter.z
+    br.readFloat()  # mData.mBV4Tree.mLocalBounds.mCenter.mExtentsMagnitude
+    br.readUByteVec(4)  # mData.mBV4Tree.mInitData
+    # #ifdef GU_BV4_QUANTIZED_TREE
+    br.readFloat()  # mData.mBV4Tree.mCenterOrMinCoeff.x
+    br.readFloat()  # mData.mBV4Tree.mCenterOrMinCoeff.y
+    br.readFloat()  # mData.mBV4Tree.mCenterOrMinCoeff.z
+    br.readFloat()  # mData.mBV4Tree.mExtentsOrMaxCoeff.x
+    br.readFloat()  # mData.mBV4Tree.mExtentsOrMaxCoeff.y
+    br.readFloat()  # mData.mBV4Tree.mExtentsOrMaxCoeff.z
+    # endif
+    print("Reading mNbNodes: Current offset: " + str(br.tell()))
+    mNbNodes = br.readIntBigEndian()  # mData.mBV4Tree.mNbNodes
+    print("mNbNodes: " + str(mNbNodes))
 
+    for _mNbNodesIndex in range(mNbNodes):
+        # #ifdef GU_BV4_QUANTIZED_TREE
+        br.readUByteVec(12)  # node.mAABB.mData[0].mExtents
+        # else
+        # br.readFloatVec(6)  # node.mAABB.mCenter.x
+        # endif
+        br.readUByteVec(4)  # node.mData
+    # End midPhaseStructure
+
+    br.readFloat()  # mMeshData.mGeomEpsilon
+    bbox_min_x = br.readFloat()  # mMeshData.mAABB.minimum.x
+    print("mMeshData.mAABB.minimum.x: " + str(bbox_min_x))
+    br.readFloat()  # mMeshData.mAABB.minimum.y
+    br.readFloat()  # mMeshData.mAABB.minimum.z
+    br.readFloat()  # mMeshData.mAABB.maximum.x
+    br.readFloat()  # mMeshData.mAABB.maximum.y
+    bbox_min_z = br.readFloat()  # mMeshData.mAABB.maximum.z
+    print("mMeshData.mAABB.maximum.z: " + str(bbox_min_z))
+
+    # if(mMeshData.mExtraTrigData)
+    mNbvTriangles = br.readInt()  # mMeshData.mNbTriangles
+    print("mNbvTriangles: " + str(mNbvTriangles))
+
+    br.readUByteVec(mNbvTriangles)
+    # else
+    # br.readUByteVec(4)  # 0
+    # endif
+
+    # GRB Write
+    has_grb = (triangle_mesh.serial_flags >> 5) & 1 == 1
+    print("has_grb: " + str(has_grb))
+
+    if has_grb:
+        for _triangle_index in range(triangle_mesh.triangle_count * 3):
+            if is_8bit:
+                br.readUByte()
+            elif is_16bit:
+                br.readUByteVec(2)
+            else:
+                br.readInt()
+        br.readUIntVec(triangle_mesh.triangle_count * 4)  # mMeshData.mGRB_triAdjacencies
+        br.readUIntVec(triangle_mesh.triangle_count)  # mMeshData.mGRB_faceRemap
+        # Write midPhaseStructure BV3 -> BV32TriangleMeshBuilder::saveMidPhaseStructure
+        bv32 = br.readString(4)  # "BV32"
+        print("Reading BV32: " + str(bv32) + " File Offset: " + str(br.tell()))
+        br.readUByteVec(4)  # Bv32 Structure Version. If 1, the midPhaseStructure will be bigEndian
+        br.readFloat()  # mData.mBV4Tree.mLocalBounds.mCenter.x
+        br.readFloat()  # mData.mBV4Tree.mLocalBounds.mCenter.y
+        br.readFloat()  # mData.mBV4Tree.mLocalBounds.mCenter.z
+        br.readFloat()  # mData.mBV4Tree.mLocalBounds.mCenter.mExtentsMagnitude
+        br.readUByteVec(4)  # mData.mBV4Tree.mInitData
+        mNbPackedNodes = br.readInt()  # mData.mBV4Tree.mNbPackedNodes
+        print("mNbPackedNodes: " + str(mNbPackedNodes))
+        mNbPackedNodesBE = br.readIntBigEndian()  # mData.mBV4Tree.mNbPackedNodes
+        print("mNbPackedNodesBE: " + str(mNbPackedNodesBE))
+        for _mNbNodesIndex in range(mNbPackedNodes):
+            mNbNodes = br.readInt(4)  # node.mNbNodes
+            print("mNbNodes: " + str(mNbNodes))
+            mNbNodesBE = br.readIntBigEndian(4)  # node.mNbNodes
+            print("mNbNodesBE: " + str(mNbNodesBE))
+            br.readUByteVec(4 * mNbNodes)  # node.mData
+            br.readFloatVec(4 * mNbNodes)  # node.mCenter[0].x
+            br.readFloatVec(4 * mNbNodes)  # node.mExtents[0].x
+        # End midPhaseStructure
+        # End GRB Write
     return triangle_mesh
 
 class Physics:

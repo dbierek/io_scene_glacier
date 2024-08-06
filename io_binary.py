@@ -35,6 +35,9 @@ class BinaryReader:
     def readInt(self):
         return struct.unpack("i", self.file.read(4))[0]
 
+    def readIntBigEndian(self):
+        return struct.unpack(">i", self.file.read(4))[0]
+
     def readUInt(self):
         return struct.unpack("I", self.file.read(4))[0]
 
