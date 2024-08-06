@@ -75,35 +75,27 @@ class PhysicsCollisionSettings(ctypes.Structure):
     ]
 
 
-class ConvexMeshData:
-    def __init__(self):
-        self.vertices = []
-
-
 class ConvexMesh:
     def __init__(self):
         self.collision_layer = 0
         self.position = [0.0, 0.0, 0.0]
         self.rotation = [0.0, 0.0, 0.0, 0.0]
         self.vertex_count = 0
+        self.vertices = []
         self.has_grb_data = 0
         self.edge_count = 0
         self.polygon_count = 0
         self.polygons_vertex_count = 0
-        self.data = ConvexMeshData()
-
-
-class TriangleMeshData:
-    def __init__(self):
-        self.vertices = []
 
 
 class TriangleMesh:
     def __init__(self):
         self.collision_layer = 0
+        self.serial_flags = 0
         self.vertex_count = 0
         self.triangle_count = 0
-        self.data = TriangleMeshData()
+        self.vertices = []
+        self.triangle_data = []
 
 
 class Shatter:
@@ -111,7 +103,6 @@ class Shatter:
         self.collision_layer = 0
         self.vertex_count = 0
         self.triangle_count = 0
-        self.data = TriangleMeshData()
 
 
 class PrimitiveBox:
@@ -138,6 +129,192 @@ class PrimitiveSphere:
         self.position = [0.0, 0.0, 0.0]
         self.rotation = [0.0, 0.0, 0.0, 0.0]
 
+
+def read_convex_mesh(br):
+    # Start of first convex mesh, offset = 27
+    # ---- Fixed header for each Convex Mesh sizeof = 80
+    # CollisionLayer, position, rotation: sizeof = 36
+    convex_mesh = ConvexMesh()
+    convex_mesh.collision_layer = br.readUInt()
+    convex_mesh.position = br.readFloatVec(3)
+    convex_mesh.rotation = br.readFloatVec(4)
+    # "\0\0.?NXS.VCXM\u{13}\0\0\0\0\0\0\0ICE.CLCL\u{8}\0\0\0ICE.CVHL\u{8}\0\0\0" sizeof = 44
+    br.readUByteVec(44)
+    # For first mesh, current position = 103 = 0x67
+    # ---- Variable data for each Convex Mesh Hull
+    # sizeof = 16 + 3*vertex_count + 20*polygon_count + polygons_vertex_count + 2*edge_count + 3*vertex_count + (if (has_grb_data) then 8*edge_count else 0)
+    # Example: 00C87539307C6091:
+    #  vertex_count: 8
+    #  has_grb_data: false
+    #  edge_count: 12
+    #  polygon_count: 6
+    #  polygons_vertex_count: 24
+    #  sizeof variable data (no grb) = 16 + 24 + 120 + 24 + 24 + 24 + 0 = 232 = 0xE8
+    #  sizeof variable data (with grb) = 16 + 24 + 120 + 24 + 24 + 24 + 96 = 328 = 0x148
+    #  Total size (no grb) = 103 + 232 = 0x67 + 0xE8 = 335 = 0x14F
+    #  Total size (with grb) = 103 + 328 = 0x67 + 0x148 = 431 = 0x1AF
+    print("Starting to read variable convex mesh hull data. Current offset: " + str(br.tell()))
+    convex_mesh.vertex_count = br.readUInt()
+    print("Num vertices " + str(convex_mesh.vertex_count))
+
+    grb_flag_and_edge_count = br.readUInt()
+    convex_mesh.has_grb_data = 0x8000 & grb_flag_and_edge_count
+    print("Has_grb_data " + str(convex_mesh.has_grb_data))
+
+    convex_mesh.edge_count = 0x7FFF & grb_flag_and_edge_count
+    print("edge_count " + str(convex_mesh.edge_count))
+    convex_mesh.polygon_count = br.readUInt()
+    print("polygon_count " + str(convex_mesh.polygon_count))
+    convex_mesh.polygons_vertex_count = br.readUInt()
+    print("polygons_vertex_count " + str(convex_mesh.polygons_vertex_count))
+    vertices = []
+    for _vertex_index in range(convex_mesh.vertex_count):
+        vertices.append(br.readFloatVec(3))
+    convex_mesh.vertices = vertices
+    print("Finished reading vertices and metadata. Reading convex main hull data")
+
+    # Unused because Blender can build the convex hull
+    hull_polygon_data = 0
+    for _polygon_index in range(convex_mesh.polygon_count):
+        print("Reading 20 characters of HullPolygonData. Current offset: " + str(br.tell()))
+        hull_polygon_data = br.readUByteVec(20)  # HullPolygonData
+        print(len(hull_polygon_data))
+        # TODO: <------------------ Read past EOF Here on second convex mesh!
+        if len(hull_polygon_data) < 20:
+            break
+    if len(hull_polygon_data) < 20:
+        return
+    mHullDataVertexData8 = br.readUByteVec(
+        convex_mesh.polygons_vertex_count)  # mHullDataVertexData8 for each polygon's vertices
+    print("mHullDataVertexData8 " + str(mHullDataVertexData8))
+    mHullDataFacesByEdges8 = br.readUByteVec(convex_mesh.edge_count * 2)  # mHullDataFacesByEdges8
+    print("mHullDataFacesByEdges8 " + str(mHullDataVertexData8))
+    mHullDataFacesByVertices8 = br.readUByteVec(convex_mesh.vertex_count * 3)  # mHullDataFacesByVertices8
+    print("mHullDataFacesByVertices8 " + str(mHullDataVertexData8))
+    if convex_mesh.has_grb_data == 1:
+        print("has_grb_data true. Reading edges. Current offset: " + str(br.tell()))
+        mEdges = br.readUByteVec(4 * 2 * convex_mesh.edge_count)  # mEdges
+    else:
+        print("has_grb_data false. No edges to read. Current offset: " + str(br.tell()))
+    print(
+        "Finished reading main convex hull data. Reading remaining convex hull data. Current offset: " + str(br.tell()))
+    # ---- End of Variable data for each Convex Mesh Hull
+
+    # Remaining convex hull data
+    zero = br.readFloat()  # 0
+    print("This should be zero: " + str(zero) + " Current offset: " + str(br.tell()))
+    # Local bounds
+    bbox_min_x = br.readFloat()  # mHullData.mAABB.getMin(0)
+    print("Bbox min x: " + str(bbox_min_x) + " Current offset: " + str(br.tell()))
+    bbox_min_y = br.readFloat()  # mHullData.mAABB.getMin(1)
+    bbox_min_z = br.readFloat()  # mHullData.mAABB.getMin(2)
+    bbox_max_x = br.readFloat()  # mHullData.mAABB.getMax(0)
+    bbox_max_y = br.readFloat()  # mHullData.mAABB.getMax(1)
+    bbox_max_z = br.readFloat()  # mHullData.mAABB.getMax(2)
+    # Mass Info
+    mass = br.readFloat()  # mMass
+    print("Mass: " + str(mass) + " Current offset: " + str(br.tell()))
+    br.readFloatVec(9)  # mInertia
+    br.readFloatVec(3)  # mCenterOfMass.x
+    gauss_map_flag = br.readFloat()
+    print("Gauss Flag: " + str(gauss_map_flag))
+
+    if gauss_map_flag == 1.0:
+        print("Gauss Flag is 1.0, reading Gauss Data")
+        br.readUByteVec(24)  # ICE.SUPM....ICE.GAUS....
+        mSubdiv = br.readInt()  # mSVM->mData.mSubdiv
+        print("mSubdiv: " + str(mSubdiv))
+
+        num_samples = br.readInt()  # mSVM->mData.mNbSamples
+        print("num_samples: " + str(num_samples))
+        br.readUByteVec(num_samples * 2)
+        br.readUByteVec(8)  # VALE....
+        num_svm_verts = br.readInt()  # mSVM->mData.mNbVerts
+        print("num_svm_verts: " + str(num_svm_verts))
+        num_svm_adj_verts = br.readInt()  # mSVM->mData.mNbAdjVerts
+        print("num_svm_adj_verts: " + str(num_svm_adj_verts))
+        svm_max_index = br.readInt()  # maxIndex
+        print("svm_max_index: " + str(svm_max_index))
+        if svm_max_index <= 0xff:
+            print("svm_max_index <= 0xff. File offset: " + str(br.tell()))
+            br.readUByteVec(num_svm_verts)
+        else:
+            print("svm_max_index > 0xff. File offset: " + str(br.tell()))
+            br.readUByteVec(num_svm_verts * 2)
+        br.readUByteVec(num_svm_adj_verts)
+    else:
+        print("Gauss Flag is " + str(gauss_map_flag) + " No Gauss Data")
+    print("Finished reading Convex mesh. File offset: " + str(br.tell()))
+    mRadius = br.readFloat()
+    mExtents_0 = br.readFloat()
+    mExtents_1 = br.readFloat()
+    mExtents_2 = br.readFloat()
+    return convex_mesh
+
+
+def read_triangle_mesh(br):
+    # Start of first triangle mesh, offset = 27
+    triangle_mesh = TriangleMesh()
+    triangle_mesh.collision_layer = br.readUInt()
+    br.readUByteVec(16)  # \0\0\0\0NXS.MESH....\u{15}\0\0\0
+    # 47
+    br.readUByteVec(4)  # midPhaseId
+    triangle_mesh.serial_flags = br.readInt()
+    # IMSF_MATERIALS = (1 << 0), // ! < if set, the cooked mesh file contains per-triangle material indices
+    # IMSF_FACE_REMAP        =    (1 << 1), // ! < if set, the cooked mesh file contains a remap table
+    # IMSF_8BIT_INDICES    =    (1 << 2), // ! < if set, the cooked mesh file contains 8bit indices (topology)
+    # IMSF_16BIT_INDICES    =    (1 << 3), // ! < if set, the cooked mesh file contains 16bit indices (topology)
+    # IMSF_ADJACENCIES    =    (1 << 4), // ! < if set, the cooked mesh file contains adjacency structures
+    # IMSF_GRB_DATA        =    (1 << 5) // ! < if set, the cooked mesh file contains GRB data structures
+    triangle_mesh.vertex_count = br.readUInt()
+    print("vertex_count: " + str(triangle_mesh.vertex_count))
+    triangle_mesh.triangle_count = br.readUInt()
+    print("vertex_count: " + str(triangle_mesh.triangle_count))
+    vertices = []
+    for vertex_index in range(triangle_mesh.vertex_count):
+        vertex = br.readFloatVec(3)
+        print("vertex " + str(vertex_index) + ": " + str(vertex))
+        vertices.append(vertex)
+    triangle_mesh.vertices = vertices
+    # Check serial flag
+    triangle_data = []
+    is_8bit = triangle_mesh.serial_flags & (1 << 2)
+    is_16bit = triangle_mesh.serial_flags & (1 << 3)
+    if is_8bit:
+        for triangle_index in range(triangle_mesh.triangle_count * 3):
+            triangle_byte = br.readUByte()
+            print("Triangle_byte: " + str(triangle_byte))
+            triangle_data.append(triangle_byte)
+    elif is_16bit:
+        for triangle_index in range(triangle_mesh.triangle_count * 3):
+            triangle_byte_pair = br.readUByteVec(2)
+            print("Triangle_byte_pair: " + str(triangle_byte_pair))
+            triangle_data.append(triangle_byte_pair)
+    else:
+        for triangle_index in range(triangle_mesh.triangle_count * 3):
+            triangle_int = br.readInt()
+            print("Triangle_Int: " + str(triangle_int))
+            triangle_data.append(triangle_int)
+    triangle_mesh.triangle_data = triangle_data
+    material_indices = triangle_mesh.serial_flags & (1 << 0)
+    if material_indices:
+        br.readUByteVec(2 * triangle_mesh.triangle_count)  # material_indices
+    face_remap = triangle_mesh.serial_flags & (1 << 1)
+    if face_remap:
+        max_id = br.readByte()
+        if is_8bit:
+            br.readUByteVec(triangle_mesh.vertex_count)
+        elif is_16bit:
+            br.readUByteVec(triangle_mesh.vertex_count * 2)
+        else:
+            for triangle_index in range(triangle_mesh.triangle_count):
+                br.readInt()
+    adjacencies = triangle_mesh.serial_flags & (1 << 4)
+    if adjacencies:
+        for triangle_index in range(triangle_mesh.triangle_count * 3):
+            br.readInt()
+
+    return triangle_mesh
 
 class Physics:
     def __init__(self):
@@ -226,141 +403,19 @@ class Physics:
         self.collision_type = br.readUInt()
         br.readUByteVec(11)  # "ID\0\0\0\u{5}PhysX"
         br.readUByteVec(4)  # Mesh Type ("CVX ", "TRI ", "ICP ", "BCP ")
+        # End of header. Current offset = 23
         if self.data_type == PhysicsDataType.CONVEX_MESH:
             self.convex_mesh_count = br.readUInt()
             # Current position = 23
             for convex_mesh_index in range(self.convex_mesh_count):
-                print("Loading mesh " + str(convex_mesh_index) + " of " + str(self.convex_mesh_count))
-                # ---- Fixed header for each Convex Mesh sizeof = 80
-                # CollisionLayer, position, rotation: sizeof = 36
-                convex_mesh = ConvexMesh()
+                print("Loading Convex mesh " + str(convex_mesh_index) + " of " + str(self.convex_mesh_count))
+                convex_mesh = read_convex_mesh(br)
                 self.convex_meshes.append(convex_mesh)
-                convex_mesh.collision_layer = br.readUInt()
-                convex_mesh.position = br.readFloatVec(3)
-                convex_mesh.rotation = br.readFloatVec(4)
-                # "\0\0.?NXS.VCXM\u{13}\0\0\0\0\0\0\0ICE.CLCL\u{8}\0\0\0ICE.CVHL\u{8}\0\0\0" sizeof = 44
-                br.readUByteVec(44)
-                # For first mesh, current position = 103 = 0x67
-                # ---- Variable data for each Convex Mesh Hull
-                # sizeof = 16 + 3*vertex_count + 20*polygon_count + polygons_vertex_count + 2*edge_count + 3*vertex_count + (if (has_grb_data) then 8*edge_count else 0)
-                # Example: 00C87539307C6091:
-                #  vertex_count: 8
-                #  has_grb_data: false
-                #  edge_count: 12
-                #  polygon_count: 6
-                #  polygons_vertex_count: 24
-                #  sizeof variable data (no grb) = 16 + 24 + 120 + 24 + 24 + 24 + 0 = 232 = 0xE8
-                #  sizeof variable data (with grb) = 16 + 24 + 120 + 24 + 24 + 24 + 96 = 328 = 0x148
-                #  Total size (no grb) = 103 + 232 = 0x67 + 0xE8 = 335 = 0x14F
-                #  Total size (with grb) = 103 + 328 = 0x67 + 0x148 = 431 = 0x1AF
-                print("Starting to read variable convex mesh hull data. Current offset: " + str(br.tell()))
-                convex_mesh.vertex_count = br.readUInt()
-                print("Num vertices " + str(convex_mesh.vertex_count))
-
-                grb_flag_and_edge_count = br.readUInt()
-                convex_mesh.has_grb_data = 0x8000 & grb_flag_and_edge_count
-                print("Has_grb_data " + str(convex_mesh.has_grb_data))
-
-                convex_mesh.edge_count = 0x7FFF & grb_flag_and_edge_count
-                print("edge_count " + str(convex_mesh.edge_count))
-                convex_mesh.polygon_count = br.readUInt()
-                print("polygon_count " + str(convex_mesh.polygon_count))
-                convex_mesh.polygons_vertex_count = br.readUInt()
-                print("polygons_vertex_count " + str(convex_mesh.polygons_vertex_count))
-                vertices = []
-                for _vertex_index in range(convex_mesh.vertex_count):
-                    vertices.append(br.readFloatVec(3))
-                convex_mesh.data.vertices = vertices
-                print("Finished reading vertices and metadata. Reading convex main hull data")
-
-                # Unused because Blender can build the convex hull
-                hull_polygon_data = 0
-                for _polygon_index in range(convex_mesh.polygon_count):
-                    print("Reading 20 characters of HullPolygonData. Current offset: " + str(br.tell()))
-                    hull_polygon_data = br.readUByteVec(20)  # HullPolygonData
-                    print(len(hull_polygon_data))
-                    # TODO: <------------------ Read past EOF Here on second convex mesh!
-                    if len(hull_polygon_data) < 20:
-                        break
-                if len(hull_polygon_data) < 20:
-                    break
-                mHullDataVertexData8 = br.readUByteVec(convex_mesh.polygons_vertex_count)  # mHullDataVertexData8 for each polygon's vertices
-                print("mHullDataVertexData8 " + str(mHullDataVertexData8))
-                mHullDataFacesByEdges8 = br.readUByteVec(convex_mesh.edge_count * 2)  # mHullDataFacesByEdges8
-                print("mHullDataFacesByEdges8 " + str(mHullDataVertexData8))
-                mHullDataFacesByVertices8 = br.readUByteVec(convex_mesh.vertex_count * 3)  # mHullDataFacesByVertices8
-                print("mHullDataFacesByVertices8 " + str(mHullDataVertexData8))
-                if convex_mesh.has_grb_data == 1:
-                    print("has_grb_data true. Reading edges. Current offset: " + str(br.tell()))
-                    mEdges = br.readUByteVec(4 * 2 * convex_mesh.edge_count)  # mEdges
-                else:
-                    print("has_grb_data false. No edges to read. Current offset: " + str(br.tell()))
-                print("Finished reading main convex hull data. Reading remaining convex hull data. Current offset: " + str(br.tell()))
-                # ---- End of Variable data for each Convex Mesh Hull
-
-                # Remaining convex hull data
-                zero = br.readFloat()  # 0
-                print("This should be zero: " + str(zero) + " Current offset: " + str(br.tell()))
-                # Local bounds
-                bbox_min_x = br.readFloat()  # mHullData.mAABB.getMin(0)
-                print("Bbox min x: " + str(bbox_min_x) + " Current offset: " + str(br.tell()))
-                bbox_min_y = br.readFloat()  # mHullData.mAABB.getMin(1)
-                bbox_min_z = br.readFloat()  # mHullData.mAABB.getMin(2)
-                bbox_max_x = br.readFloat()  # mHullData.mAABB.getMax(0)
-                bbox_max_y = br.readFloat()  # mHullData.mAABB.getMax(1)
-                bbox_max_z = br.readFloat()  # mHullData.mAABB.getMax(2)
-                # Mass Info
-                mass = br.readFloat()  # mMass
-                print("Mass: " + str(mass) + " Current offset: " + str(br.tell()))
-                br.readFloatVec(9)  # mInertia
-                br.readFloatVec(3)  # mCenterOfMass.x
-                gauss_map_flag = br.readFloat()
-                print("Gauss Flag: " + str(gauss_map_flag))
-
-                if gauss_map_flag == 1.0:
-                    print("Gauss Flag is 1.0, reading Gauss Data")
-                    br.readUByteVec(24)  # ICE.SUPM....ICE.GAUS....
-                    mSubdiv = br.readInt()  # mSVM->mData.mSubdiv
-                    print("mSubdiv: " + str(mSubdiv))
-
-                    num_samples = br.readInt()  # mSVM->mData.mNbSamples
-                    print("num_samples: " + str(num_samples))
-                    br.readUByteVec(num_samples * 2)
-                    br.readUByteVec(8)  # VALE....
-                    num_svm_verts = br.readInt()  # mSVM->mData.mNbVerts
-                    print("num_svm_verts: " + str(num_svm_verts))
-                    num_svm_adj_verts = br.readInt()  # mSVM->mData.mNbAdjVerts
-                    print("num_svm_adj_verts: " + str(num_svm_adj_verts))
-                    svm_max_index = br.readInt()  # maxIndex
-                    print("svm_max_index: " + str(svm_max_index))
-                    if svm_max_index <= 0xff:
-                        print("svm_max_index <= 0xff. File offset: " + str(br.tell()))
-                        br.readUByteVec(num_svm_verts)
-                    else:
-                        print("svm_max_index > 0xff. File offset: " + str(br.tell()))
-                        br.readUByteVec(num_svm_verts * 2)
-                    br.readUByteVec(num_svm_adj_verts)
-                else:
-                    print("Gauss Flag is " + str(gauss_map_flag) + " No Gauss Data")
-                print("Finished reading Convex mesh. File offset: " + str(br.tell()))
-                mRadius = br.readFloat()
-                mExtents_0 = br.readFloat()
-                mExtents_1 = br.readFloat()
-                mExtents_2 = br.readFloat()
-
-
         elif self.data_type == PhysicsDataType.TRIANGLE_MESH:
             self.triangle_mesh_count = br.readUInt()
-            for _ in range(self.triangle_mesh_count):
-                triangle_mesh = TriangleMesh()
-                triangle_mesh.collision_layer = br.readUInt()
-                br.seek(55)
-                triangle_mesh.vertex_count = br.readUInt()
-                triangle_mesh.triangle_count = br.readUInt()
-                vertices = []
-                for __ in range(triangle_mesh.vertex_count):
-                    vertices.append(br.readFloatVec(3))
-                triangle_mesh.data.vertices = vertices
+            for triangle_mesh_index in range(self.triangle_mesh_count):
+                print("Loading Triangle mesh " + str(triangle_mesh_index) + " of " + str(self.triangle_mesh_count))
+                triangle_mesh = read_triangle_mesh(br)
                 self.triangle_meshes.append(triangle_mesh)
         elif self.data_type == PhysicsDataType.PRIMITIVE:
             print("Found primitive")

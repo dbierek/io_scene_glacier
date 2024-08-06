@@ -62,17 +62,18 @@ def load_aloc(operator, context, filepath):
         for mesh_index in range(aloc.convex_mesh_count):
             obj = create_new_object(aloc_name)
             bm = bmesh.new()
-            for v in aloc.convex_meshes[mesh_index].data.vertices:
+            for v in aloc.convex_meshes[mesh_index].vertices:
                 bm.verts.new(v)
             mesh = obj.data
             convex_hull(bm, mesh, obj, collection, context)
     elif aloc.data_type == aloc_format.PhysicsDataType.TRIANGLE_MESH:
-        obj = create_new_object(aloc_name)
-        bm = bmesh.new()
-        for v in aloc.triangle_meshes[0].data.vertices:
-            bm.verts.new(v)
-        mesh = obj.data
-        convex_hull(bm, mesh, obj, collection, context)
+        for mesh_index in range(aloc.triangle_mesh_count):
+            obj = create_new_object(aloc_name)
+            bm = bmesh.new()
+            for v in aloc.triangle_meshes[mesh_index].vertices:
+                bm.verts.new(v)
+            mesh = obj.data
+            convex_hull(bm, mesh, obj, collection, context)
     elif aloc.data_type == aloc_format.PhysicsDataType.PRIMITIVE:
         print("Primitive Type")
         print("Primitive count: " + str(aloc.primitive_count))
