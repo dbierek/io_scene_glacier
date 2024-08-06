@@ -9,7 +9,7 @@ import bmesh
 def read_aloc(filepath):
     prim_name = bpy.path.display_name_from_filepath(filepath)
     print("Started reading: " + str(prim_name) + "\n")
-    print("Loading AIRG file " + filepath)
+    print("Loading ALOC file " + filepath)
     fp = os.fsencode(filepath)
     file = open(fp, "rb")
     br = io_binary.BinaryReader(file)
@@ -59,12 +59,13 @@ def load_aloc(operator, context, filepath):
     aloc = read_aloc(filepath)
     collection = context.scene.collection
     if aloc.data_type == aloc_format.PhysicsDataType.CONVEX_MESH:
-        obj = create_new_object(aloc_name)
-        bm = bmesh.new()
-        for v in aloc.convex_meshes[0].data.vertices:
-            bm.verts.new(v)
-        mesh = obj.data
-        convex_hull(bm, mesh, obj, collection, context)
+        for mesh_index in range(aloc.convex_mesh_count):
+            obj = create_new_object(aloc_name)
+            bm = bmesh.new()
+            for v in aloc.convex_meshes[mesh_index].data.vertices:
+                bm.verts.new(v)
+            mesh = obj.data
+            convex_hull(bm, mesh, obj, collection, context)
     elif aloc.data_type == aloc_format.PhysicsDataType.TRIANGLE_MESH:
         obj = create_new_object(aloc_name)
         bm = bmesh.new()
