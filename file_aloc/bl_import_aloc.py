@@ -4,6 +4,7 @@ from . import format as aloc_format
 from .. import io_binary
 import bpy
 import bmesh
+import math
 
 
 def read_aloc(filepath):
@@ -51,6 +52,10 @@ def link_new_object(aloc_name, context):
     obj.select_set(True)
 
 
+def rot(x, y, z):
+    return x * math.pi / 2, z * math.pi / 2, y * math.pi / 2
+
+
 def load_aloc(operator, context, filepath):
     """Imports an ALOC mesh from the given path"""
 
@@ -84,8 +89,8 @@ def load_aloc(operator, context, filepath):
             print("Primitive Box")
             bpy.ops.mesh.primitive_cube_add(
                 location=(box.position[0], box.position[1], box.position[2]),
-                rotation=(box.rotation[0], box.rotation[1], box.rotation[2]),
-                scale=(box.half_extents[0] * 2, box.half_extents[1] * 2, box.half_extents[2] * 2)
+                rotation=rot(box.rotation[0], box.rotation[1], box.rotation[2]  ),
+                scale=(box.half_extents[0], box.half_extents[1], box.half_extents[2])
             )
             link_new_object(aloc_name, context)
         for sphere in aloc.primitive_spheres:

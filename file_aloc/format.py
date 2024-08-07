@@ -14,8 +14,8 @@ class PhysicsDataType(enum.IntEnum):
     PRIMITIVE = 4
     CONVEX_MESH_AND_PRIMITIVE = 5
     TRIANGLE_MESH_AND_PRIMITIVE = 6
-    SHATTER_LINKED = 144
     KINEMATIC_LINKED = 132
+    SHATTER_LINKED = 144
     KINEMATIC_LINKED_2 = 192
 
 
@@ -257,18 +257,18 @@ def read_triangle_mesh(br):
     triangle_mesh = TriangleMesh()
     triangle_mesh.collision_layer = br.readUInt()
     br.readUByteVec(16)  # \0\0\0\0NXS.MESH....\u{15}\0\0\0
-    # 47
+    # Offset: 47
     br.readUByteVec(4)  # midPhaseId
     print("Reading serial_flags. Current offset: " + str(br.tell()))
 
     triangle_mesh.serial_flags = br.readInt()
-    # Example Serial Flag: 6 = 0110: IMSF_FACE_REMAP | IMSF_8BIT_INDICES
-    # IMSF_MATERIALS = (1 << 0), // ! < if set, the cooked mesh file contains per-triangle material indices
-    # IMSF_FACE_REMAP        =    (1 << 1), // ! < if set, the cooked mesh file contains a remap table
+    # Example Serial Flag: 6 = 00000110: IMSF_FACE_REMAP | IMSF_8BIT_INDICES
+    # IMSF_MATERIALS       =    (1 << 0), // ! < if set, the cooked mesh file contains per-triangle material indices
+    # IMSF_FACE_REMAP      =    (1 << 1), // ! < if set, the cooked mesh file contains a remap table
     # IMSF_8BIT_INDICES    =    (1 << 2), // ! < if set, the cooked mesh file contains 8bit indices (topology)
-    # IMSF_16BIT_INDICES    =    (1 << 3), // ! < if set, the cooked mesh file contains 16bit indices (topology)
-    # IMSF_ADJACENCIES    =    (1 << 4), // ! < if set, the cooked mesh file contains adjacency structures
-    # IMSF_GRB_DATA        =    (1 << 5) // ! < if set, the cooked mesh file contains GRB data structures
+    # IMSF_16BIT_INDICES   =    (1 << 3), // ! < if set, the cooked mesh file contains 16bit indices (topology)
+    # IMSF_ADJACENCIES     =    (1 << 4), // ! < if set, the cooked mesh file contains adjacency structures
+    # IMSF_GRB_DATA        =    (1 << 5)  // ! < if set, the cooked mesh file contains GRB data structures
     print("Reading Vertex_count: Current offset: " + str(br.tell()))
     triangle_mesh.vertex_count = br.readUInt()
     print("vertex_count: " + str(triangle_mesh.vertex_count))
@@ -512,35 +512,58 @@ class Physics:
         br.readUByteVec(11)  # "ID\0\0\0\u{5}PhysX"
         br.readUByteVec(4)  # Mesh Type ("CVX ", "TRI ", "ICP ", "BCP ")
         # End of header. Current offset = 23
+        # PhysicsDataTypes
+        # NONE = 0
+        # CONVEX_MESH = 1
+        # TRIANGLE_MESH = 2
+        # CONVEX_MESH_AND_TRIANGLE_MESH = 3
+        # PRIMITIVE = 4
+        # CONVEX_MESH_AND_PRIMITIVE = 5
+        # TRIANGLE_MESH_AND_PRIMITIVE = 6
+        # KINEMATIC_LINKED = 132
+        # SHATTER_LINKED = 144
+        # KINEMATIC_LINKED_2 = 192
+
+        # Current position = 23
         if self.data_type == PhysicsDataType.CONVEX_MESH:
             self.convex_mesh_count = br.readUInt()
-            # Current position = 23
             for convex_mesh_index in range(self.convex_mesh_count):
                 print("Loading Convex mesh " + str(convex_mesh_index) + " of " + str(self.convex_mesh_count))
-                convex_mesh = read_convex_mesh(br)
-                self.convex_meshes.append(convex_mesh)
+                self.convex_meshes.append(read_convex_mesh(br))
         elif self.data_type == PhysicsDataType.TRIANGLE_MESH:
             self.triangle_mesh_count = br.readUInt()
             for triangle_mesh_index in range(self.triangle_mesh_count):
                 print("Loading Triangle mesh " + str(triangle_mesh_index) + " of " + str(self.triangle_mesh_count))
-                triangle_mesh = read_triangle_mesh(br)
-                self.triangle_meshes.append(triangle_mesh)
+                self.triangle_meshes.append(read_triangle_mesh(br))
+        elif self.data_type == PhysicsDataType.CONVEX_MESH_AND_TRIANGLE_MESH:
+            self.convex_mesh_count = br.readUInt()
+            for convex_mesh_index in range(self.convex_mesh_count):
+                print("Loading Convex mesh " + str(convex_mesh_index) + " of " + str(self.convex_mesh_count))
+                self.convex_meshes.append(read_convex_mesh(br))
+            self.triangle_mesh_count = br.readUInt()
+            for triangle_mesh_index in range(self.triangle_mesh_count):
+                print("Loading Triangle mesh " + str(triangle_mesh_index) + " of " + str(self.triangle_mesh_count))
+                self.triangle_meshes.append(read_triangle_mesh(br))
         elif self.data_type == PhysicsDataType.PRIMITIVE:
             print("Found primitive")
             primitive_count = br.readUInt()
-            for _ in range(primitive_count):
+            # 27
+            for _ in range(primitive_count):  # size of box = 52
                 primitive_type = br.readString(3).decode("utf-8")
                 print("Primitive type: " + primitive_type)
                 br.readUByteVec(1)
                 if primitive_type == "BOX":
-                    print("Found Primitive Box")
-                    self.primitive_boxes_count += 1
+                    print("Loading Primitive Box")
                     primitive_box = PrimitiveBox()
+                    # 31
                     primitive_box.half_extents = br.readFloatVec(3)
+                    # 43
                     primitive_box.collision_layer = br.readUInt64()
+                    # 51
                     primitive_box.position = br.readFloatVec(3)
+                    # 63
                     primitive_box.rotation = br.readFloatVec(4)
-                    self.primitive_boxes.append(primitive_box)
+                    # 79
                     print(
                         "Primitive Box: Pos: " + str(primitive_box.position[0]) + str(primitive_box.position[1]) + str(
                             primitive_box.position[2]))
@@ -549,23 +572,25 @@ class Physics:
                     print("Primitive Box: rotation: " + str(primitive_box.rotation[0]) + str(
                         primitive_box.rotation[1]) + str(primitive_box.rotation[2]) + str(primitive_box.rotation[3]))
                     print("Primitive Box: collision_layer: " + str(primitive_box.collision_layer))
+                    self.primitive_boxes_count += 1
+                    self.primitive_boxes.append(primitive_box)
 
                 elif primitive_type == "CAP":
-                    self.primitive_capsules_count += 1
                     primitive_capsule = PrimitiveCapsule()
                     primitive_capsule.radius = br.readFloat()
                     primitive_capsule.length = br.readFloat()
                     primitive_capsule.collision_layer = br.readUInt64()
                     primitive_capsule.position = br.readFloatVec(3)
                     primitive_capsule.rotation = br.readFloatVec(4)
+                    self.primitive_capsules_count += 1
                     self.primitive_capsules.append(primitive_capsule)
                 elif primitive_type == "SPH":
-                    self.primitive_spheres_count += 1
                     primitive_sphere = PrimitiveSphere()
                     primitive_sphere.radius = br.readFloat()
                     primitive_sphere.collision_layer = br.readUInt64()
                     primitive_sphere.position = br.readFloatVec(3)
                     primitive_sphere.rotation = br.readFloatVec(4)
+                    self.primitive_spheres_count += 1
                     self.primitive_spheres.append(primitive_sphere)
             self.primitive_count = self.primitive_capsules_count + self.primitive_boxes_count + self.primitive_spheres_count
         elif self.data_type == PhysicsDataType.SHATTER_LINKED:
