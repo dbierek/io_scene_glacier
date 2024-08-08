@@ -63,6 +63,7 @@ def load_aloc(operator, context, filepath):
     aloc_name = bpy.path.display_name_from_filepath(filepath)
     aloc = read_aloc(filepath)
     collection = context.scene.collection
+    objects = []
     if aloc.data_type == aloc_format.PhysicsDataType.CONVEX_MESH:
         for mesh_index in range(aloc.convex_mesh_count):
             obj = create_new_object(aloc_name)
@@ -71,6 +72,7 @@ def load_aloc(operator, context, filepath):
                 bm.verts.new(v)
             mesh = obj.data
             convex_hull(bm, mesh, obj, collection, context)
+            objects.append(obj)
     elif aloc.data_type == aloc_format.PhysicsDataType.TRIANGLE_MESH:
         for mesh_index in range(aloc.triangle_mesh_count):
             obj = create_new_object(aloc_name)
@@ -79,6 +81,7 @@ def load_aloc(operator, context, filepath):
                 bm.verts.new(v)
             mesh = obj.data
             convex_hull(bm, mesh, obj, collection, context)
+            objects.append(obj)
     elif aloc.data_type == aloc_format.PhysicsDataType.PRIMITIVE:
         print("Primitive Type")
         print("Primitive count: " + str(aloc.primitive_count))
@@ -93,6 +96,7 @@ def load_aloc(operator, context, filepath):
                 scale=(box.half_extents[0], box.half_extents[1], box.half_extents[2])
             )
             link_new_object(aloc_name, context)
+            objects.append(bpy.context.active_object)
         for sphere in aloc.primitive_spheres:
             print("Primitive Sphere")
             bpy.ops.mesh.primitive_ico_sphere_add(
@@ -102,6 +106,7 @@ def load_aloc(operator, context, filepath):
                 rotation=(sphere.rotation[0], sphere.rotation[1], sphere.rotation[2]),
             )
             link_new_object(aloc_name, context)
+            objects.append(bpy.context.active_object)
         for capsule in aloc.primitive_capsules:
             print("Primitive Capsule")
             bpy.ops.mesh.primitive_ico_sphere_add(
@@ -111,6 +116,7 @@ def load_aloc(operator, context, filepath):
                 rotation=(capsule.rotation[0], capsule.rotation[1], capsule.rotation[2]),
             )
             link_new_object(aloc_name + "_top", context)
+            objects.append(bpy.context.active_object)
             bpy.ops.mesh.primitive_cylinder_add(
                 radius=capsule.radius,
                 depth=capsule.length,
@@ -119,6 +125,7 @@ def load_aloc(operator, context, filepath):
                 rotation=(capsule.rotation[0], capsule.rotation[1], capsule.rotation[2])
             )
             link_new_object(aloc_name + "_cylinder", context)
+            objects.append(bpy.context.active_object)
             bpy.ops.mesh.primitive_ico_sphere_add(
                 subdivisions=2,
                 radius=capsule.radius,
@@ -126,8 +133,9 @@ def load_aloc(operator, context, filepath):
                 rotation=(capsule.rotation[0], capsule.rotation[1], capsule.rotation[2]),
             )
             link_new_object(aloc_name + "_bottom", context)
+            objects.append(bpy.context.active_object)
 
     print("Done Importing ALOC")
-    return 0
+    return objects
 
 

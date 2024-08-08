@@ -80,12 +80,74 @@ class ImportALOC(bpy.types.Operator, ImportHelper):
 
         return {"FINISHED"}
 
+
+class ImportScenario(bpy.types.Operator, ImportHelper):
+    """Load a alocs.json scenario file"""
+
+    bl_idname = "import_scenario.json"
+    bl_label = "Import Scenario Json"
+    filename_ext = ".json"
+
+    filter_glob: StringProperty(
+        default="*.json",
+        options={"HIDDEN"},
+    )
+
+    files: CollectionProperty(
+        name="File Path",
+        type=bpy.types.OperatorFileListElement,
+    )
+
+    aloc_filepath: StringProperty(
+        name="Collision Path",
+        description="Path to the Collision (ALOC) file",
+    )
+
+    def draw(self, context):
+        if ".json" not in self.filepath.lower():
+            return
+
+        layout = self.layout
+
+        layout.row(align=True)
+
+    def execute(self, context):
+        from . import bl_import_scenario
+        scenario_paths = [
+            "%s\\%s" % (os.path.dirname(self.filepath), scenarioPaths.name)
+            for scenarioPaths in self.files
+        ]
+        for scenario_path in scenario_paths:
+            collection = bpy.data.collections.new(
+                bpy.path.display_name_from_filepath(scenario_path)
+            )
+            context.scene.collection.children.link(collection)
+
+            scenario = bl_import_scenario.load_scenario(
+                self, context, collection, scenario_path
+            )
+
+            if scenario == 1:
+                BlenderUI.MessageBox(
+                    'Failed to import scenario "%s"' % scenario_path, "Importing error", "ERROR"
+                )
+                return {"CANCELLED"}
+
+            layer = bpy.context.view_layer
+            layer.update()
+
+        return {"FINISHED"}
+
+
 # ------------------------------------------------------------------------
 #    Registration
 # ------------------------------------------------------------------------
 
 
-classes = [ImportALOC]
+classes = [
+    ImportALOC,
+    ImportScenario
+]
 
 
 def register():
@@ -93,15 +155,23 @@ def register():
         register_class(cls)
 
     bpy.types.TOPBAR_MT_file_import.append(menu_func_import_aloc)
+    bpy.types.TOPBAR_MT_file_import.append(menu_func_import_aloc_scenario)
 
 
 def unregister():
     for cls in classes:
         unregister_class(cls)
 
+    bpy.types.TOPBAR_MT_file_import.remove(menu_func_import_aloc)
+    bpy.types.TOPBAR_MT_file_import.remove(menu_func_import_aloc_scenario)
 
 def menu_func_import_aloc(self, context):
     self.layout.operator(ImportALOC.bl_idname, text="Glacier Collision Mesh (.aloc)")
+
+
+def menu_func_import_aloc_scenario(self, context):
+    self.layout.operator(ImportScenario.bl_idname, text="Glacier Scenario Aloc Transforms (.json)")
+
 
 if __name__ == "__main__":
     register()
