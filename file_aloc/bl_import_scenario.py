@@ -6,11 +6,14 @@ from . import bl_import_aloc
 import mathutils
 from mathutils import Euler
 import math
+from timeit import default_timer as timer
 
 from .format import PhysicsCollisionLayerType, PhysicsCollisionType
 
 
 def load_scenario(operator, context, collection, path_to_alocs_json):
+    start = timer()
+    print("Loading scenario.")
     f = open(path_to_alocs_json, "r")
     data = json.loads(f.read())
     f.close()
@@ -31,10 +34,10 @@ def load_scenario(operator, context, collection, path_to_alocs_json):
     aloc_list = [item for item in file_list if item.lower().endswith('.aloc')]
 
     excluded_collision_types = [
-        PhysicsCollisionType.NONE,
-        PhysicsCollisionType.RIGIDBODY,
-        PhysicsCollisionType.KINEMATIC_LINKED,
-        PhysicsCollisionType.SHATTER_LINKED
+        # PhysicsCollisionType.NONE,
+        # PhysicsCollisionType.RIGIDBODY,
+        # PhysicsCollisionType.KINEMATIC_LINKED,
+        # PhysicsCollisionType.SHATTER_LINKED
     ]
     for aloc_filename in aloc_list:
         aloc_hash = aloc_filename[:-5]
@@ -76,5 +79,6 @@ def load_scenario(operator, context, collection, path_to_alocs_json):
                 cur.rotation_euler = Euler((-r["yaw"], -r["pitch"], -r["roll"]), 'XYZ')
                 cur.location = mathutils.Vector((p["x"], p["y"], p["z"]))
                 cur.select_set(False)
-
+    end = timer()
+    print("Finished loading scenario in " + str(end - start) + " seconds.")
     return 0
