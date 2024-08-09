@@ -1,10 +1,13 @@
 import os
 import json
+import struct
 
 from . import bl_import_aloc
 import mathutils
 from mathutils import Euler
 import math
+
+from .format import PhysicsCollisionLayerType, PhysicsCollisionType
 
 
 def load_scenario(operator, context, collection, path_to_alocs_json):
@@ -23,26 +26,35 @@ def load_scenario(operator, context, collection, path_to_alocs_json):
         transforms[aloc_hash].append(transform)
 
     path_to_aloc_dir = "%s\\%s" % (os.path.dirname(path_to_alocs_json), "aloc")
-    print("Path to aloc dir:")
-    print(path_to_aloc_dir)
+    print("Path to aloc dir:" + path_to_aloc_dir)
     file_list = sorted(os.listdir(path_to_aloc_dir))
     aloc_list = [item for item in file_list if item.lower().endswith('.aloc')]
+
+    invalid_collision_type = [
+        # PhysicsCollisionType.RIGIDBODY,
+        # PhysicsCollisionType.KINEMATIC_LINKED,
+        # PhysicsCollisionType.SHATTER_LINKED
+    ]
     for aloc_filename in aloc_list:
         aloc_hash = aloc_filename[:-5]
         if aloc_hash not in transforms:
             continue
         aloc_path = os.path.join(path_to_aloc_dir, aloc_filename)
 
-        print("Loading aloc:")
-        print(aloc_hash)
-        objects = bl_import_aloc.load_aloc(
-            None, context, aloc_path
-        )
+        print("Loading aloc:" + aloc_hash)
+        try:
+            collision_type, objects = bl_import_aloc.load_aloc(
+                None, context, aloc_path, False
+            )
+        except struct.error as err:
+            print("=========================== Error Loading aloc: " + str(aloc_hash) + " Exception: " + str(err) + " ================")
+            continue
         if not objects:
-            print("Error Loading aloc:")
-            print(aloc_hash)
-            return 1
-
+            print("-------------------- Error Loading aloc:" + aloc_hash + " ----------------------")
+            continue
+        if collision_type in invalid_collision_type:
+            print("+++++++++++++++++++++ Skipping Non-collidable ALOC: " + aloc_hash + " with collision type: " + str(collision_type) + " +++++++++++++")
+            continue
         t = transforms[aloc_hash]
         t_size = len(t)
         for i in range(0, t_size):

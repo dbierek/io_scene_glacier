@@ -176,9 +176,9 @@ def read_convex_mesh(br):
     # Unused because Blender can build the convex hull
     hull_polygon_data = 0
     for _polygon_index in range(convex_mesh.polygon_count):
-        print("Reading 20 characters of HullPolygonData. Current offset: " + str(br.tell()))
+        # print("Reading 20 characters of HullPolygonData. Current offset: " + str(br.tell()))
         hull_polygon_data = br.readUByteVec(20)  # HullPolygonData
-        print(len(hull_polygon_data))
+        # print(len(hull_polygon_data))
         # TODO: <------------------ Read past EOF Here on second convex mesh!
         if len(hull_polygon_data) < 20:
             break
@@ -186,11 +186,11 @@ def read_convex_mesh(br):
         return
     mHullDataVertexData8 = br.readUByteVec(
         convex_mesh.polygons_vertex_count)  # mHullDataVertexData8 for each polygon's vertices
-    print("mHullDataVertexData8 " + str(mHullDataVertexData8))
+    # print("mHullDataVertexData8 " + str(mHullDataVertexData8))
     mHullDataFacesByEdges8 = br.readUByteVec(convex_mesh.edge_count * 2)  # mHullDataFacesByEdges8
-    print("mHullDataFacesByEdges8 " + str(mHullDataVertexData8))
+    # print("mHullDataFacesByEdges8 " + str(mHullDataVertexData8))
     mHullDataFacesByVertices8 = br.readUByteVec(convex_mesh.vertex_count * 3)  # mHullDataFacesByVertices8
-    print("mHullDataFacesByVertices8 " + str(mHullDataVertexData8))
+    # print("mHullDataFacesByVertices8 " + str(mHullDataVertexData8))
     if convex_mesh.has_grb_data == 1:
         print("has_grb_data true. Reading edges. Current offset: " + str(br.tell()))
         mEdges = br.readUByteVec(4 * 2 * convex_mesh.edge_count)  # mEdges
@@ -277,7 +277,7 @@ def read_triangle_mesh(br):
     vertices = []
     for vertex_index in range(triangle_mesh.vertex_count):
         vertex = br.readFloatVec(3)
-        print("vertex " + str(vertex_index) + ": " + str(vertex))
+        # print("vertex " + str(vertex_index) + ": " + str(vertex))
         vertices.append(vertex)
     triangle_mesh.vertices = vertices
     # Check serial flag
@@ -291,19 +291,19 @@ def read_triangle_mesh(br):
         print("is_8bit. Reading triangle bytes")
         for triangle_index in range(triangle_mesh.triangle_count * 3):
             triangle_byte = br.readUByte()
-            print("Triangle_byte: " + str(triangle_byte))
+            # print("Triangle_byte: " + str(triangle_byte))
             triangle_data.append(triangle_byte)
     elif is_16bit:
         print("is_16bit. Reading triangle byte pairs")
         for triangle_index in range(triangle_mesh.triangle_count * 3):
             triangle_byte_pair = br.readUByteVec(2)
-            print("Triangle_byte_pair: " + str(triangle_byte_pair))
+            # print("Triangle_byte_pair: " + str(triangle_byte_pair))
             triangle_data.append(triangle_byte_pair)
     else:
         print("Not 8 or 16 bit. Reading triangle ints")
         for triangle_index in range(triangle_mesh.triangle_count * 3):
             triangle_int = br.readInt()
-            print("Triangle_Int: " + str(triangle_int))
+            # print("Triangle_Int: " + str(triangle_int))
             triangle_data.append(triangle_int)
     triangle_mesh.triangle_data = triangle_data
     material_indices = (triangle_mesh.serial_flags >> 0) & 1 == 1
@@ -319,15 +319,15 @@ def read_triangle_mesh(br):
         print("max_id: " + str(max_id))
         if is_8bit:
             face_remap_val = br.readUByteVec(triangle_mesh.triangle_count)
-            print("face_remap_val 8bit: " + str(face_remap_val))
+            # print("face_remap_val 8bit: " + str(face_remap_val))
 
         elif is_16bit:
             face_remap_val = br.readUByteVec(triangle_mesh.triangle_count * 2)
-            print("face_remap_val 16bit: " + str(face_remap_val))
+            # print("face_remap_val 16bit: " + str(face_remap_val))
         else:
             for triangle_index in range(triangle_mesh.triangle_count):
                 face_remap_val = br.readInt()
-                print("face_remap_val int: " + str(face_remap_val))
+                # print("face_remap_val int: " + str(face_remap_val))
     adjacencies = (triangle_mesh.serial_flags >> 4) & 1 == 1
     print("adjacencies: " + str(adjacencies))
     if adjacencies:
@@ -414,9 +414,9 @@ def read_triangle_mesh(br):
         print("mNbPackedNodesBE: " + str(mNbPackedNodesBE))
         for _mNbNodesIndex in range(mNbPackedNodes):
             mNbNodes = br.readInt(4)  # node.mNbNodes
-            print("mNbNodes: " + str(mNbNodes))
+            # print("mNbNodes: " + str(mNbNodes))
             mNbNodesBE = br.readIntBigEndian(4)  # node.mNbNodes
-            print("mNbNodesBE: " + str(mNbNodesBE))
+            # print("mNbNodesBE: " + str(mNbNodesBE))
             br.readUByteVec(4 * mNbNodes)  # node.mData
             br.readFloatVec(4 * mNbNodes)  # node.mCenter[0].x
             br.readFloatVec(4 * mNbNodes)  # node.mExtents[0].x

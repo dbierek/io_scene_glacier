@@ -1,6 +1,7 @@
 import os
 
 from . import format as aloc_format
+from .format import PhysicsCollisionLayerType
 from .. import io_binary
 import bpy
 import bmesh
@@ -56,7 +57,29 @@ def rot(x, y, z):
     return x * math.pi / 2, z * math.pi / 2, y * math.pi / 2
 
 
-def load_aloc(operator, context, filepath):
+def collidable_layer(collision_layer):
+    invalid_collision_layer_types = [
+        # PhysicsCollisionLayerType.SHOT_ONLY_COLLISION,
+        # PhysicsCollisionLayerType.ACTOR_DYN_BODY,
+        # PhysicsCollisionLayerType.ACTOR_PROXY,
+        # PhysicsCollisionLayerType.ACTOR_RAGDOLL,
+        # PhysicsCollisionLayerType.AI_VISION_BLOCKER,
+        # PhysicsCollisionLayerType.AI_VISION_BLOCKER_AMBIENT_ONLY,
+        # PhysicsCollisionLayerType.COLLISION_VOLUME_HITMAN_OFF,
+        # PhysicsCollisionLayerType.DYNAMIC_COLLIDABLES_ONLY,
+        # PhysicsCollisionLayerType.DYNAMIC_COLLIDABLES_ONLY_NO_CHARACTER,
+        # PhysicsCollisionLayerType.DYNAMIC_COLLIDABLES_ONLY_NO_CHARACTER_TRANSPARENT,
+        # PhysicsCollisionLayerType.DYNAMIC_TRASH_COLLIDABLES,
+        # PhysicsCollisionLayerType.HERO_DYN_BODY,
+        # PhysicsCollisionLayerType.ITEMS,
+        # PhysicsCollisionLayerType.KINEMATIC_COLLIDABLES_ONLY,
+        # PhysicsCollisionLayerType.KINEMATIC_COLLIDABLES_ONLY_TRANSPARENT,
+        # PhysicsCollisionLayerType.WEAPONS
+    ]
+    return collision_layer not in invalid_collision_layer_types
+
+
+def load_aloc(operator, context, filepath, include_non_collidable_layers):
     """Imports an ALOC mesh from the given path"""
 
     print("Loading ALOC")
@@ -68,8 +91,10 @@ def load_aloc(operator, context, filepath):
         for mesh_index in range(aloc.convex_mesh_count):
             obj = create_new_object(aloc_name)
             bm = bmesh.new()
-            for v in aloc.convex_meshes[mesh_index].vertices:
-                bm.verts.new(v)
+            m = aloc.convex_meshes[mesh_index]
+            if include_non_collidable_layers or collidable_layer(m.collision_layer):
+                for v in m.vertices:
+                    bm.verts.new(v)
             mesh = obj.data
             convex_hull(bm, mesh, obj, collection, context)
             objects.append(obj)
@@ -77,8 +102,10 @@ def load_aloc(operator, context, filepath):
         for mesh_index in range(aloc.triangle_mesh_count):
             obj = create_new_object(aloc_name)
             bm = bmesh.new()
-            for v in aloc.triangle_meshes[mesh_index].vertices:
-                bm.verts.new(v)
+            m = aloc.triangle_meshes[mesh_index]
+            if include_non_collidable_layers or collidable_layer(m.collision_layer):
+                for v in m.vertices:
+                    bm.verts.new(v)
             mesh = obj.data
             convex_hull(bm, mesh, obj, collection, context)
             objects.append(obj)
@@ -89,53 +116,56 @@ def load_aloc(operator, context, filepath):
         print("Primitive Spheres count: " + str(aloc.primitive_spheres_count))
         print("Primitive Capsules count: " + str(aloc.primitive_capsules_count))
         for box in aloc.primitive_boxes:
-            print("Primitive Box")
-            bpy.ops.mesh.primitive_cube_add(
-                location=(box.position[0], box.position[1], box.position[2]),
-                rotation=rot(box.rotation[0], box.rotation[1], box.rotation[2]  ),
-                scale=(box.half_extents[0], box.half_extents[1], box.half_extents[2])
-            )
-            link_new_object(aloc_name, context)
-            objects.append(bpy.context.active_object)
+            if include_non_collidable_layers or collidable_layer(box.collision_layer):
+                print("Primitive Box")
+                bpy.ops.mesh.primitive_cube_add(
+                    location=(box.position[0], box.position[1], box.position[2]),
+                    rotation=rot(box.rotation[0], box.rotation[1], box.rotation[2]  ),
+                    scale=(box.half_extents[0], box.half_extents[1], box.half_extents[2])
+                )
+                link_new_object(aloc_name, context)
+                objects.append(bpy.context.active_object)
         for sphere in aloc.primitive_spheres:
-            print("Primitive Sphere")
-            bpy.ops.mesh.primitive_ico_sphere_add(
-                subdivisions=2,
-                radius=sphere.radius,
-                location=(sphere.position[0], sphere.position[1], sphere.position[2]),
-                rotation=(sphere.rotation[0], sphere.rotation[1], sphere.rotation[2]),
-            )
-            link_new_object(aloc_name, context)
-            objects.append(bpy.context.active_object)
+            if include_non_collidable_layers or collidable_layer(sphere.collision_layer):
+                print("Primitive Sphere")
+                bpy.ops.mesh.primitive_ico_sphere_add(
+                    subdivisions=2,
+                    radius=sphere.radius,
+                    location=(sphere.position[0], sphere.position[1], sphere.position[2]),
+                    rotation=(sphere.rotation[0], sphere.rotation[1], sphere.rotation[2]),
+                )
+                link_new_object(aloc_name, context)
+                objects.append(bpy.context.active_object)
         for capsule in aloc.primitive_capsules:
-            print("Primitive Capsule")
-            bpy.ops.mesh.primitive_ico_sphere_add(
-                subdivisions=2,
-                radius=capsule.radius,
-                location=(capsule.position[0], capsule.position[1], capsule.position[2] + capsule.length),
-                rotation=(capsule.rotation[0], capsule.rotation[1], capsule.rotation[2]),
-            )
-            link_new_object(aloc_name + "_top", context)
-            objects.append(bpy.context.active_object)
-            bpy.ops.mesh.primitive_cylinder_add(
-                radius=capsule.radius,
-                depth=capsule.length,
-                end_fill_type='NOTHING',
-                location=(capsule.position[0], capsule.position[1], capsule.position[2]),
-                rotation=(capsule.rotation[0], capsule.rotation[1], capsule.rotation[2])
-            )
-            link_new_object(aloc_name + "_cylinder", context)
-            objects.append(bpy.context.active_object)
-            bpy.ops.mesh.primitive_ico_sphere_add(
-                subdivisions=2,
-                radius=capsule.radius,
-                location=(capsule.position[0], capsule.position[1], capsule.position[2] - capsule.length),
-                rotation=(capsule.rotation[0], capsule.rotation[1], capsule.rotation[2]),
-            )
-            link_new_object(aloc_name + "_bottom", context)
-            objects.append(bpy.context.active_object)
+            if include_non_collidable_layers or collidable_layer(capsule.collision_layer):
+                print("Primitive Capsule")
+                bpy.ops.mesh.primitive_ico_sphere_add(
+                    subdivisions=2,
+                    radius=capsule.radius,
+                    location=(capsule.position[0], capsule.position[1], capsule.position[2] + capsule.length),
+                    rotation=(capsule.rotation[0], capsule.rotation[1], capsule.rotation[2]),
+                )
+                link_new_object(aloc_name + "_top", context)
+                objects.append(bpy.context.active_object)
+                bpy.ops.mesh.primitive_cylinder_add(
+                    radius=capsule.radius,
+                    depth=capsule.length,
+                    end_fill_type='NOTHING',
+                    location=(capsule.position[0], capsule.position[1], capsule.position[2]),
+                    rotation=(capsule.rotation[0], capsule.rotation[1], capsule.rotation[2])
+                )
+                link_new_object(aloc_name + "_cylinder", context)
+                objects.append(bpy.context.active_object)
+                bpy.ops.mesh.primitive_ico_sphere_add(
+                    subdivisions=2,
+                    radius=capsule.radius,
+                    location=(capsule.position[0], capsule.position[1], capsule.position[2] - capsule.length),
+                    rotation=(capsule.rotation[0], capsule.rotation[1], capsule.rotation[2]),
+                )
+                link_new_object(aloc_name + "_bottom", context)
+                objects.append(bpy.context.active_object)
 
     print("Done Importing ALOC")
-    return objects
+    return aloc.collision_type, objects
 
 

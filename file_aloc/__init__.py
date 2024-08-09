@@ -64,7 +64,7 @@ class ImportALOC(bpy.types.Operator, ImportHelper):
             # )
 
             aloc_result = bl_import_aloc.load_aloc(
-                self, context, aloc_path
+                self, context, aloc_path, True
             )
 
             # context.scene.collection.children.link(collection)
