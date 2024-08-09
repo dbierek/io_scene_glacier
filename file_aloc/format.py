@@ -66,6 +66,7 @@ class PhysicsCollisionPrimitiveType(enum.IntEnum):
     BOX = 0
     CAPSULE = 1
     SPHERE = 2
+    NONE = 3
 
 
 class PhysicsCollisionSettings(ctypes.Structure):
@@ -424,6 +425,7 @@ def read_triangle_mesh(br):
         # End GRB Write
     return triangle_mesh
 
+
 class Physics:
     def __init__(self):
         self.data_type = PhysicsDataType.NONE
@@ -512,19 +514,7 @@ class Physics:
         br.readUByteVec(11)  # "ID\0\0\0\u{5}PhysX"
         br.readUByteVec(4)  # Mesh Type ("CVX ", "TRI ", "ICP ", "BCP ")
         # End of header. Current offset = 23
-        # PhysicsDataTypes
-        # NONE = 0
-        # CONVEX_MESH = 1
-        # TRIANGLE_MESH = 2
-        # CONVEX_MESH_AND_TRIANGLE_MESH = 3
-        # PRIMITIVE = 4
-        # CONVEX_MESH_AND_PRIMITIVE = 5
-        # TRIANGLE_MESH_AND_PRIMITIVE = 6
-        # KINEMATIC_LINKED = 132
-        # SHATTER_LINKED = 144
-        # KINEMATIC_LINKED_2 = 192
 
-        # Current position = 23
         if self.data_type == PhysicsDataType.CONVEX_MESH:
             self.convex_mesh_count = br.readUInt()
             for convex_mesh_index in range(self.convex_mesh_count):

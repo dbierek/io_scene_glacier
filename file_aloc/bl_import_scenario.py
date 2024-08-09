@@ -30,10 +30,11 @@ def load_scenario(operator, context, collection, path_to_alocs_json):
     file_list = sorted(os.listdir(path_to_aloc_dir))
     aloc_list = [item for item in file_list if item.lower().endswith('.aloc')]
 
-    invalid_collision_type = [
-        # PhysicsCollisionType.RIGIDBODY,
-        # PhysicsCollisionType.KINEMATIC_LINKED,
-        # PhysicsCollisionType.SHATTER_LINKED
+    excluded_collision_types = [
+        PhysicsCollisionType.NONE,
+        PhysicsCollisionType.RIGIDBODY,
+        PhysicsCollisionType.KINEMATIC_LINKED,
+        PhysicsCollisionType.SHATTER_LINKED
     ]
     for aloc_filename in aloc_list:
         aloc_hash = aloc_filename[:-5]
@@ -52,7 +53,7 @@ def load_scenario(operator, context, collection, path_to_alocs_json):
         if not objects:
             print("-------------------- Error Loading aloc:" + aloc_hash + " ----------------------")
             continue
-        if collision_type in invalid_collision_type:
+        if collision_type in excluded_collision_types:
             print("+++++++++++++++++++++ Skipping Non-collidable ALOC: " + aloc_hash + " with collision type: " + str(collision_type) + " +++++++++++++")
             continue
         t = transforms[aloc_hash]
