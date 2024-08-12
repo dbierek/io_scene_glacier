@@ -185,16 +185,16 @@ def read_convex_mesh(br):
             break
     if len(hull_polygon_data) < 20:
         return
-    mHullDataVertexData8 = br.readUByteVec(
+    _mHullDataVertexData8 = br.readUByteVec(
         convex_mesh.polygons_vertex_count)  # mHullDataVertexData8 for each polygon's vertices
     # print("mHullDataVertexData8 " + str(mHullDataVertexData8))
-    mHullDataFacesByEdges8 = br.readUByteVec(convex_mesh.edge_count * 2)  # mHullDataFacesByEdges8
+    _mHullDataFacesByEdges8 = br.readUByteVec(convex_mesh.edge_count * 2)  # mHullDataFacesByEdges8
     # print("mHullDataFacesByEdges8 " + str(mHullDataVertexData8))
-    mHullDataFacesByVertices8 = br.readUByteVec(convex_mesh.vertex_count * 3)  # mHullDataFacesByVertices8
+    _mHullDataFacesByVertices8 = br.readUByteVec(convex_mesh.vertex_count * 3)  # mHullDataFacesByVertices8
     # print("mHullDataFacesByVertices8 " + str(mHullDataVertexData8))
     if convex_mesh.has_grb_data == 1:
         print("has_grb_data true. Reading edges. Current offset: " + str(br.tell()))
-        mEdges = br.readUByteVec(4 * 2 * convex_mesh.edge_count)  # mEdges
+        _mEdges = br.readUByteVec(4 * 2 * convex_mesh.edge_count)  # mEdges
     else:
         print("has_grb_data false. No edges to read. Current offset: " + str(br.tell()))
     print(
@@ -207,11 +207,11 @@ def read_convex_mesh(br):
     # Local bounds
     bbox_min_x = br.readFloat()  # mHullData.mAABB.getMin(0)
     print("Bbox min x: " + str(bbox_min_x) + " Current offset: " + str(br.tell()))
-    bbox_min_y = br.readFloat()  # mHullData.mAABB.getMin(1)
-    bbox_min_z = br.readFloat()  # mHullData.mAABB.getMin(2)
-    bbox_max_x = br.readFloat()  # mHullData.mAABB.getMax(0)
-    bbox_max_y = br.readFloat()  # mHullData.mAABB.getMax(1)
-    bbox_max_z = br.readFloat()  # mHullData.mAABB.getMax(2)
+    _bbox_min_y = br.readFloat()  # mHullData.mAABB.getMin(1)
+    _bbox_min_z = br.readFloat()  # mHullData.mAABB.getMin(2)
+    _bbox_max_x = br.readFloat()  # mHullData.mAABB.getMax(0)
+    _bbox_max_y = br.readFloat()  # mHullData.mAABB.getMax(1)
+    _bbox_max_z = br.readFloat()  # mHullData.mAABB.getMax(2)
     # Mass Info
     mass = br.readFloat()  # mMass
     print("Mass: " + str(mass) + " Current offset: " + str(br.tell()))
@@ -223,7 +223,7 @@ def read_convex_mesh(br):
     if gauss_map_flag == 1.0:
         print("Gauss Flag is 1.0, reading Gauss Data")
         br.readUByteVec(24)  # ICE.SUPM....ICE.GAUS....
-        mSubdiv = br.readInt()  # mSVM->mData.mSubdiv
+        _mSubdiv = br.readInt()  # mSVM->mData.mSubdiv
         print("mSubdiv: " + str(mSubdiv))
 
         num_samples = br.readInt()  # mSVM->mData.mNbSamples
@@ -246,10 +246,10 @@ def read_convex_mesh(br):
     else:
         print("Gauss Flag is " + str(gauss_map_flag) + " No Gauss Data")
     print("Finished reading Convex mesh. File offset: " + str(br.tell()))
-    mRadius = br.readFloat()
-    mExtents_0 = br.readFloat()
-    mExtents_1 = br.readFloat()
-    mExtents_2 = br.readFloat()
+    _mRadius = br.readFloat()
+    _mExtents_0 = br.readFloat()
+    _mExtents_1 = br.readFloat()
+    _mExtents_2 = br.readFloat()
     return convex_mesh
 
 
@@ -295,11 +295,11 @@ def read_triangle_mesh(br):
             # print("Triangle_byte: " + str(triangle_byte))
             triangle_data.append(triangle_byte)
     elif is_16bit:
-        print("is_16bit. Reading triangle byte pairs")
+        print("is_16bit. Reading triangle shorts")
         for triangle_index in range(triangle_mesh.triangle_count * 3):
-            triangle_byte_pair = br.readUByteVec(2)
-            # print("Triangle_byte_pair: " + str(triangle_byte_pair))
-            triangle_data.append(triangle_byte_pair)
+            triangle_short = br.readUShort()
+            # print("Triangle_short: " + str(triangle_short))
+            triangle_data.append(triangle_short)
     else:
         print("Not 8 or 16 bit. Reading triangle ints")
         for triangle_index in range(triangle_mesh.triangle_count * 3):
@@ -341,6 +341,9 @@ def read_triangle_mesh(br):
     print("Should say bv4: " + str(bv4))
     bv4_version = br.readIntBigEndian()  # Bv4 Structure Version. Is always 1, so the midPhaseStructure will be bigEndian
     print("BV4 version. Should be 1: " + str(bv4_version))
+    if bv4_version != 1:
+        print("[ERROR] Error reading triangle mesh: Unexpected BV4 version.")
+        return -1
     br.readFloat()  # mData.mBV4Tree.mLocalBounds.mCenter.x
     br.readFloat()  # mData.mBV4Tree.mLocalBounds.mCenter.y
     br.readFloat()  # mData.mBV4Tree.mLocalBounds.mCenter.z
@@ -524,7 +527,13 @@ class Physics:
             self.triangle_mesh_count = br.readUInt()
             for triangle_mesh_index in range(self.triangle_mesh_count):
                 print("Loading Triangle mesh " + str(triangle_mesh_index) + " of " + str(self.triangle_mesh_count))
-                self.triangle_meshes.append(read_triangle_mesh(br))
+                mesh = read_triangle_mesh(br)
+                if mesh != -1:
+                    self.triangle_meshes.append(mesh)
+                else:
+                    print("[ERROR] Can't continue loading current ALOC. Returning loaded meshes.")
+                    self.triangle_mesh_count = triangle_mesh_index
+                    return self.triangle_meshes
         elif self.data_type == PhysicsDataType.CONVEX_MESH_AND_TRIANGLE_MESH:
             self.convex_mesh_count = br.readUInt()
             for convex_mesh_index in range(self.convex_mesh_count):
@@ -533,7 +542,13 @@ class Physics:
             self.triangle_mesh_count = br.readUInt()
             for triangle_mesh_index in range(self.triangle_mesh_count):
                 print("Loading Triangle mesh " + str(triangle_mesh_index) + " of " + str(self.triangle_mesh_count))
-                self.triangle_meshes.append(read_triangle_mesh(br))
+                mesh = read_triangle_mesh(br)
+                if mesh != -1:
+                    self.triangle_meshes.append(mesh)
+                else:
+                    print("[ERROR] Can't continue loading current ALOC. Returning loaded meshes.")
+                    self.triangle_mesh_count = triangle_mesh_index
+                    return self.triangle_meshes
         elif self.data_type == PhysicsDataType.PRIMITIVE:
             print("Found primitive")
             primitive_count = br.readUInt()

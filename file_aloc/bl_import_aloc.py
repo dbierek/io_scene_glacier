@@ -22,14 +22,11 @@ def read_aloc(filepath):
     return aloc
 
 
-def convex_hull(bm, mesh, obj, collection, context):
-    bm.from_mesh(mesh)
+def convex_hull(bm):
     ch = bmesh.ops.convex_hull(bm, input=bm.verts)
-    # bmesh.ops.delete(
-    #     bm,
-    #     geom=ch["geom_unused"] + ch["geom_interior"],
-    #     context='VERTS',
-    # )
+
+
+def to_mesh(bm, mesh, obj, collection, context):
     bm.to_mesh(mesh)
     obj.data = mesh
     bm.free()
@@ -110,23 +107,34 @@ def load_aloc(operator, context, filepath, include_non_collidable_layers):
                     "+++++++++++++++++++++ Skipping Non-collidable ALOC mesh: " + aloc_name + " with mesh index: " + str(mesh_index) + " and collision layer type: " + str(
                         m.collision_layer) + " +++++++++++++")
             mesh = obj.data
-            convex_hull(bm, mesh, obj, collection, context)
+            bm.from_mesh(mesh)
+            convex_hull(bm)
+            to_mesh(bm, mesh, obj, collection, context)
             objects.append(obj)
     elif aloc.data_type == aloc_format.PhysicsDataType.TRIANGLE_MESH:
         for mesh_index in range(aloc.triangle_mesh_count):
             obj = create_new_object(aloc_name, aloc.collision_type, aloc.data_type)
             bm = bmesh.new()
             m = aloc.triangle_meshes[mesh_index]
+            bmv = []
             if include_non_collidable_layers or collidable_layer(m.collision_layer):
                 for v in m.vertices:
-                    bm.verts.new(v)
+                    bmv.append(bm.verts.new(v))
+                d = m.triangle_data
+                for i in range(0, len(d), 3):
+                    face = (bmv[d[i]], bmv[d[i + 1]], bmv[d[i + 2]])
+                    try:
+                        bm.faces.new(face)
+                    except ValueError as err:
+                        print("Error adding face to TriangleMesh: " + str(err))
             else:
                 print(
                     "+++++++++++++++++++++ Skipping Non-collidable ALOC mesh: " + aloc_name + " with mesh index: " + str(mesh_index) + " and collision layer type: " + str(
                         m.collision_layer) + " +++++++++++++")
 
             mesh = obj.data
-            convex_hull(bm, mesh, obj, collection, context)
+            to_mesh(bm, mesh, obj, collection, context)
+
             objects.append(obj)
     elif aloc.data_type == aloc_format.PhysicsDataType.PRIMITIVE:
         print("Primitive Type")
@@ -137,14 +145,38 @@ def load_aloc(operator, context, filepath, include_non_collidable_layers):
         for mesh_index, box in enumerate(aloc.primitive_boxes):
             if include_non_collidable_layers or collidable_layer(box.collision_layer):
                 print("Primitive Box")
-                bpy.ops.mesh.primitive_cube_add(
-                    location=(box.position[0], box.position[1], box.position[2]),
-                    rotation=rot(box.rotation[0], box.rotation[1], box.rotation[2]  ),
-                    scale=(box.half_extents[0], box.half_extents[1], box.half_extents[2])
-                )
-                link_new_object(aloc_name, context)
-                obj = bpy.context.active_object
-                set_mesh_aloc_properties(obj.data, aloc.collision_type, aloc.data_type, PhysicsCollisionPrimitiveType.BOX)
+                obj = create_new_object(aloc_name, aloc.collision_type, aloc.data_type)
+                bm = bmesh.new()
+                bmv = []
+                x = box.position[0]
+                y = box.position[1]
+                z = box.position[2]
+                rx = box.rotation[0]
+                ry = box.rotation[1]
+                rz = box.rotation[2]
+                sx = box.half_extents[0]
+                sy = box.half_extents[1]
+                sz = box.half_extents[2]
+                vertices = [
+                    [x + sx, y + sy, z - sz],
+                    [x + sx, y - sy, z - sz],
+                    [x - sx, y - sy, z - sz],
+                    [x - sx, y + sy, z - sz],
+                    [x + sx, y + sy, z + sz],
+                    [x + sx, y - sy, z + sz],
+                    [x - sx, y - sy, z + sz],
+                    [x - sx, y + sy, z + sz]
+                ]
+                for v in vertices:
+                    bmv.append(bm.verts.new(v))
+                bm.faces.new((bmv[0], bmv[1], bmv[2], bmv[3]))  # bottom
+                bm.faces.new((bmv[4], bmv[5], bmv[6], bmv[7]))  # top
+                bm.faces.new((bmv[0], bmv[1], bmv[5], bmv[4]))  # right
+                bm.faces.new((bmv[2], bmv[3], bmv[7], bmv[6]))
+                bm.faces.new((bmv[0], bmv[3], bmv[7], bmv[4]))
+                bm.faces.new((bmv[1], bmv[2], bmv[6], bmv[5]))
+                mesh = obj.data
+                to_mesh(bm, mesh, obj, collection, context)
                 objects.append(obj)
             else:
                 print(
