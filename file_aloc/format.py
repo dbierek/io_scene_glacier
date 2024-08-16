@@ -1,5 +1,6 @@
 import enum
 import os
+import bpy
 import sys
 import ctypes
 
@@ -131,7 +132,13 @@ class PrimitiveSphere:
         self.rotation = [0.0, 0.0, 0.0, 0.0]
 
 
-def read_convex_mesh(br):
+def log(level, msg, filter_field):
+    enabled = ["INFO", "WARNING", "ERROR"]
+    if level in enabled:  # and filter_field == "0031CDA11AFD98A9":
+        print("[" + level + "] " + filter_field + ": " + msg)
+
+        
+def read_convex_mesh(br, aloc_name):
     # Start of first convex mesh, offset = 27
     # ---- Fixed header for each Convex Mesh sizeof = 80
     # CollisionLayer, position, rotation: sizeof = 36
@@ -154,32 +161,32 @@ def read_convex_mesh(br):
     #  sizeof variable data (with grb) = 16 + 24 + 120 + 24 + 24 + 24 + 96 = 328 = 0x148
     #  Total size (no grb) = 103 + 232 = 0x67 + 0xE8 = 335 = 0x14F
     #  Total size (with grb) = 103 + 328 = 0x67 + 0x148 = 431 = 0x1AF
-    print("Starting to read variable convex mesh hull data. Current offset: " + str(br.tell()))
+    log("INFO", "Starting to read variable convex mesh hull data. Current offset: " + str(br.tell()), aloc_name)
     convex_mesh.vertex_count = br.readUInt()
-    print("Num vertices " + str(convex_mesh.vertex_count))
+    log("INFO", "Num vertices " + str(convex_mesh.vertex_count), aloc_name)
 
     grb_flag_and_edge_count = br.readUInt()
     convex_mesh.has_grb_data = 0x8000 & grb_flag_and_edge_count
-    print("Has_grb_data " + str(convex_mesh.has_grb_data))
+    log("INFO", "Has_grb_data " + str(convex_mesh.has_grb_data), aloc_name)
 
     convex_mesh.edge_count = 0x7FFF & grb_flag_and_edge_count
-    print("edge_count " + str(convex_mesh.edge_count))
+    log("INFO", "edge_count " + str(convex_mesh.edge_count), aloc_name)
     convex_mesh.polygon_count = br.readUInt()
-    print("polygon_count " + str(convex_mesh.polygon_count))
+    log("INFO", "polygon_count " + str(convex_mesh.polygon_count), aloc_name)
     convex_mesh.polygons_vertex_count = br.readUInt()
-    print("polygons_vertex_count " + str(convex_mesh.polygons_vertex_count))
+    log("INFO", "polygons_vertex_count " + str(convex_mesh.polygons_vertex_count), aloc_name)
     vertices = []
     for _vertex_index in range(convex_mesh.vertex_count):
         vertices.append(br.readFloatVec(3))
     convex_mesh.vertices = vertices
-    print("Finished reading vertices and metadata. Reading convex main hull data")
+    log("INFO", "Finished reading vertices and metadata. Reading convex main hull data", aloc_name)
 
     # Unused because Blender can build the convex hull
     hull_polygon_data = 0
     for _polygon_index in range(convex_mesh.polygon_count):
-        # print("Reading 20 characters of HullPolygonData. Current offset: " + str(br.tell()))
+        log("INFO", "Reading 20 characters of HullPolygonData. Current offset: " + str(br.tell()), aloc_name)
         hull_polygon_data = br.readUByteVec(20)  # HullPolygonData
-        # print(len(hull_polygon_data))
+        log("INFO", len(hull_polygon_data), aloc_name)
         # TODO: <------------------ Read past EOF Here on second convex mesh!
         if len(hull_polygon_data) < 20:
             break
@@ -187,26 +194,26 @@ def read_convex_mesh(br):
         return
     _mHullDataVertexData8 = br.readUByteVec(
         convex_mesh.polygons_vertex_count)  # mHullDataVertexData8 for each polygon's vertices
-    # print("mHullDataVertexData8 " + str(mHullDataVertexData8))
+    log("INFO", "mHullDataVertexData8 " + str(_mHullDataVertexData8), aloc_name)
     _mHullDataFacesByEdges8 = br.readUByteVec(convex_mesh.edge_count * 2)  # mHullDataFacesByEdges8
-    # print("mHullDataFacesByEdges8 " + str(mHullDataVertexData8))
+    log("INFO", "mHullDataFacesByEdges8 " + str(_mHullDataVertexData8), aloc_name)
     _mHullDataFacesByVertices8 = br.readUByteVec(convex_mesh.vertex_count * 3)  # mHullDataFacesByVertices8
-    # print("mHullDataFacesByVertices8 " + str(mHullDataVertexData8))
+    log("INFO", "mHullDataFacesByVertices8 " + str(_mHullDataVertexData8), aloc_name)
     if convex_mesh.has_grb_data == 1:
-        print("has_grb_data true. Reading edges. Current offset: " + str(br.tell()))
+        log("INFO", "has_grb_data true. Reading edges. Current offset: " + str(br.tell()), aloc_name)
         _mEdges = br.readUByteVec(4 * 2 * convex_mesh.edge_count)  # mEdges
     else:
-        print("has_grb_data false. No edges to read. Current offset: " + str(br.tell()))
-    print(
-        "Finished reading main convex hull data. Reading remaining convex hull data. Current offset: " + str(br.tell()))
+        _ = -1
+        log("INFO", "has_grb_data false. No edges to read. Current offset: " + str(br.tell()), aloc_name)
+    log("INFO",  "Finished reading main convex hull data. Reading remaining convex hull data. Current offset: " + str(br.tell()), aloc_name)
     # ---- End of Variable data for each Convex Mesh Hull
 
     # Remaining convex hull data
     zero = br.readFloat()  # 0
-    print("This should be zero: " + str(zero) + " Current offset: " + str(br.tell()))
+    log("INFO", "This should be zero: " + str(zero) + " Current offset: " + str(br.tell()), aloc_name)
     # Local bounds
     bbox_min_x = br.readFloat()  # mHullData.mAABB.getMin(0)
-    print("Bbox min x: " + str(bbox_min_x) + " Current offset: " + str(br.tell()))
+    log("INFO", "Bbox min x: " + str(bbox_min_x) + " Current offset: " + str(br.tell()), aloc_name)
     _bbox_min_y = br.readFloat()  # mHullData.mAABB.getMin(1)
     _bbox_min_z = br.readFloat()  # mHullData.mAABB.getMin(2)
     _bbox_max_x = br.readFloat()  # mHullData.mAABB.getMax(0)
@@ -214,53 +221,59 @@ def read_convex_mesh(br):
     _bbox_max_z = br.readFloat()  # mHullData.mAABB.getMax(2)
     # Mass Info
     mass = br.readFloat()  # mMass
-    print("Mass: " + str(mass) + " Current offset: " + str(br.tell()))
+    log("INFO", "Mass: " + str(mass) + " Current offset: " + str(br.tell()), aloc_name)
     br.readFloatVec(9)  # mInertia
     br.readFloatVec(3)  # mCenterOfMass.x
     gauss_map_flag = br.readFloat()
-    print("Gauss Flag: " + str(gauss_map_flag))
+    log("INFO", "Gauss Flag: " + str(gauss_map_flag), aloc_name)
 
     if gauss_map_flag == 1.0:
-        print("Gauss Flag is 1.0, reading Gauss Data")
+        log("INFO", "Gauss Flag is 1.0, reading Gauss Data", aloc_name)
         br.readUByteVec(24)  # ICE.SUPM....ICE.GAUS....
-        _mSubdiv = br.readInt()  # mSVM->mData.mSubdiv
-        print("mSubdiv: " + str(mSubdiv))
+        m_subdiv = br.readInt()  # mSVM->mData.m_subdiv
+        log("INFO", "m_subdiv: " + str(m_subdiv), aloc_name)
 
         num_samples = br.readInt()  # mSVM->mData.mNbSamples
-        print("num_samples: " + str(num_samples))
+        log("INFO", "num_samples: " + str(num_samples), aloc_name)
         br.readUByteVec(num_samples * 2)
-        br.readUByteVec(8)  # VALE....
+        br.readUByteVec(4)  # ICE.
+        log("INFO", "Reading VALE: Current offset: " + str(br.tell()), aloc_name)
+        vale = br.readString(4)  # VALE
+        log("INFO", "Should say VALE: " + str(vale), aloc_name)
+        br.readUByteVec(4)  # ....
         num_svm_verts = br.readInt()  # mSVM->mData.mNbVerts
-        print("num_svm_verts: " + str(num_svm_verts))
+        log("INFO", "num_svm_verts: " + str(num_svm_verts), aloc_name)
         num_svm_adj_verts = br.readInt()  # mSVM->mData.mNbAdjVerts
-        print("num_svm_adj_verts: " + str(num_svm_adj_verts))
+        log("INFO", "num_svm_adj_verts: " + str(num_svm_adj_verts), aloc_name)
         svm_max_index = br.readInt()  # maxIndex
-        print("svm_max_index: " + str(svm_max_index))
+        log("INFO", "svm_max_index: " + str(svm_max_index), aloc_name)
         if svm_max_index <= 0xff:
-            print("svm_max_index <= 0xff. File offset: " + str(br.tell()))
+            log("INFO", "svm_max_index <= 0xff. File offset: " + str(br.tell()), aloc_name)
             br.readUByteVec(num_svm_verts)
         else:
-            print("svm_max_index > 0xff. File offset: " + str(br.tell()))
+            log("INFO", "svm_max_index > 0xff. File offset: " + str(br.tell()), aloc_name)
             br.readUByteVec(num_svm_verts * 2)
         br.readUByteVec(num_svm_adj_verts)
+        log("INFO", "Finished Gauss Data. File offset: " + str(br.tell()), aloc_name)
     else:
-        print("Gauss Flag is " + str(gauss_map_flag) + " No Gauss Data")
-    print("Finished reading Convex mesh. File offset: " + str(br.tell()))
+        _ = -1
+        log("INFO", "Gauss Flag is " + str(gauss_map_flag) + " No Gauss Data. File offset: " + str(br.tell()), aloc_name)
     _mRadius = br.readFloat()
     _mExtents_0 = br.readFloat()
     _mExtents_1 = br.readFloat()
     _mExtents_2 = br.readFloat()
+    log("INFO", "Finished reading Convex mesh. File offset: " + str(br.tell()), aloc_name)
     return convex_mesh
 
 
-def read_triangle_mesh(br):
+def read_triangle_mesh(aloc_name, br):
     # Start of first triangle mesh, offset = 27
     triangle_mesh = TriangleMesh()
     triangle_mesh.collision_layer = br.readUInt()
     br.readUByteVec(16)  # \0\0\0\0NXS.MESH....\u{15}\0\0\0
     # Offset: 47
     br.readUByteVec(4)  # midPhaseId
-    print("Reading serial_flags. Current offset: " + str(br.tell()))
+    log("INFO", "Reading serial_flags. Current offset: " + str(br.tell()), aloc_name)
 
     triangle_mesh.serial_flags = br.readInt()
     # Example Serial Flag: 6 = 00000110: IMSF_FACE_REMAP | IMSF_8BIT_INDICES
@@ -270,80 +283,81 @@ def read_triangle_mesh(br):
     # IMSF_16BIT_INDICES   =    (1 << 3), // ! < if set, the cooked mesh file contains 16bit indices (topology)
     # IMSF_ADJACENCIES     =    (1 << 4), // ! < if set, the cooked mesh file contains adjacency structures
     # IMSF_GRB_DATA        =    (1 << 5)  // ! < if set, the cooked mesh file contains GRB data structures
-    print("Reading Vertex_count: Current offset: " + str(br.tell()))
+    log("INFO", "Reading Vertex_count: Current offset: " + str(br.tell()), aloc_name)
     triangle_mesh.vertex_count = br.readUInt()
-    print("vertex_count: " + str(triangle_mesh.vertex_count))
+    log("INFO", "vertex_count: " + str(triangle_mesh.vertex_count), aloc_name)
     triangle_mesh.triangle_count = br.readUInt()
-    print("triangle_count: " + str(triangle_mesh.triangle_count))
+    log("INFO", "triangle_count: " + str(triangle_mesh.triangle_count), aloc_name)
     vertices = []
     for vertex_index in range(triangle_mesh.vertex_count):
         vertex = br.readFloatVec(3)
-        # print("vertex " + str(vertex_index) + ": " + str(vertex))
+        log("INFO", "vertex " + str(vertex_index) + ": " + str(vertex), aloc_name)
         vertices.append(vertex)
     triangle_mesh.vertices = vertices
     # Check serial flag
     triangle_data = []
-    print("serial Flags: " + str(triangle_mesh.serial_flags))
+    log("INFO", "serial Flags: " + str(triangle_mesh.serial_flags), aloc_name)
     is_8bit = (triangle_mesh.serial_flags >> 2) & 1 == 1
-    print("is_8bit: " + str(is_8bit))
+    log("INFO", "is_8bit: " + str(is_8bit), aloc_name)
     is_16bit = (triangle_mesh.serial_flags >> 3) & 1 == 1
-    print("is_16bit: " + str(is_16bit))
+    log("INFO", "is_16bit: " + str(is_16bit), aloc_name)
     if is_8bit:
-        print("is_8bit. Reading triangle bytes")
+        log("INFO", "is_8bit. Reading triangle bytes", aloc_name)
         for triangle_index in range(triangle_mesh.triangle_count * 3):
             triangle_byte = br.readUByte()
-            # print("Triangle_byte: " + str(triangle_byte))
+            log("INFO", "Triangle_byte: " + str(triangle_byte), aloc_name)
             triangle_data.append(triangle_byte)
     elif is_16bit:
-        print("is_16bit. Reading triangle shorts")
+        log("INFO", "is_16bit. Reading triangle shorts", aloc_name)
         for triangle_index in range(triangle_mesh.triangle_count * 3):
             triangle_short = br.readUShort()
-            # print("Triangle_short: " + str(triangle_short))
+            log("INFO", "Triangle_short: " + str(triangle_short), aloc_name)
             triangle_data.append(triangle_short)
     else:
-        print("Not 8 or 16 bit. Reading triangle ints")
+        log("INFO", "Not 8 or 16 bit. Reading triangle ints", aloc_name)
         for triangle_index in range(triangle_mesh.triangle_count * 3):
             triangle_int = br.readInt()
-            # print("Triangle_Int: " + str(triangle_int))
+            log("INFO", "Triangle_Int: " + str(triangle_int), aloc_name)
             triangle_data.append(triangle_int)
     triangle_mesh.triangle_data = triangle_data
     material_indices = (triangle_mesh.serial_flags >> 0) & 1 == 1
-    print("material_indices: " + str(material_indices))
+    log("INFO", "material_indices: " + str(material_indices), aloc_name)
 
     if material_indices:
         br.readUByteVec(2 * triangle_mesh.triangle_count)  # material_indices
     face_remap = (triangle_mesh.serial_flags >> 1) & 1 == 1
-    print("face_remap: " + str(face_remap))
+    log("INFO", "face_remap: " + str(face_remap), aloc_name)
 
     if face_remap:
         max_id = br.readInt()
-        print("max_id: " + str(max_id))
-        if is_8bit:
+        log("INFO", "max_id: " + str(max_id), aloc_name)
+        if max_id <= 0xff:
             face_remap_val = br.readUByteVec(triangle_mesh.triangle_count)
-            # print("face_remap_val 8bit: " + str(face_remap_val))
+            log("INFO", "face_remap_val 8bit: " + str(face_remap_val), aloc_name)
 
-        elif is_16bit:
+        elif max_id <= 0xffff:
             face_remap_val = br.readUByteVec(triangle_mesh.triangle_count * 2)
-            # print("face_remap_val 16bit: " + str(face_remap_val))
+            log("INFO", "face_remap_val 16bit: " + str(face_remap_val), aloc_name)
         else:
             for triangle_index in range(triangle_mesh.triangle_count):
                 face_remap_val = br.readInt()
-                # print("face_remap_val int: " + str(face_remap_val))
+                log("INFO", "face_remap_val int: " + str(face_remap_val), aloc_name)
     adjacencies = (triangle_mesh.serial_flags >> 4) & 1 == 1
-    print("adjacencies: " + str(adjacencies))
+    log("INFO", "adjacencies: " + str(adjacencies), aloc_name)
     if adjacencies:
         for triangle_index in range(triangle_mesh.triangle_count * 3):
             br.readInt()
     # Write midPhaseStructure. Is it BV4? -> BV4TriangleMeshBuilder::saveMidPhaseStructure
-    print("Reading BV4: Current offset: " + str(br.tell()))
+    log("INFO", "Reading BV4: Current offset: " + str(br.tell()), aloc_name)
     bv4 = br.readString(3)  # "BV4."
     br.readUByte()
-    print("Should say bv4: " + str(bv4))
+    log("INFO", "Should say BV4: " + str(bv4), aloc_name)
     bv4_version = br.readIntBigEndian()  # Bv4 Structure Version. Is always 1, so the midPhaseStructure will be bigEndian
-    print("BV4 version. Should be 1: " + str(bv4_version))
+    log("INFO", "BV4 version. Should be 1: " + str(bv4_version), aloc_name)
     if bv4_version != 1:
-        print("[ERROR] Error reading triangle mesh: Unexpected BV4 version.")
-        return -1
+        log("INFO", "[ERROR] Error reading triangle mesh: Unexpected BV4 version.", aloc_name)
+        raise ValueError("[ERROR] Error reading triangle mesh " + aloc_name + ": Unexpected BV4 version. File offset: " + str(br.tell()))
+        # return -1
     br.readFloat()  # mData.mBV4Tree.mLocalBounds.mCenter.x
     br.readFloat()  # mData.mBV4Tree.mLocalBounds.mCenter.y
     br.readFloat()  # mData.mBV4Tree.mLocalBounds.mCenter.z
@@ -357,11 +371,11 @@ def read_triangle_mesh(br):
     br.readFloat()  # mData.mBV4Tree.mExtentsOrMaxCoeff.y
     br.readFloat()  # mData.mBV4Tree.mExtentsOrMaxCoeff.z
     # endif
-    print("Reading mNbNodes: Current offset: " + str(br.tell()))
-    mNbNodes = br.readIntBigEndian()  # mData.mBV4Tree.mNbNodes
-    print("mNbNodes: " + str(mNbNodes))
+    log("INFO", "Reading mNbNodes: Current offset: " + str(br.tell()), aloc_name)
+    m_nb_nodes = br.readIntBigEndian()  # mData.mBV4Tree.mNbNodes
+    log("INFO", "mNbNodes: " + str(m_nb_nodes), aloc_name)
 
-    for _mNbNodesIndex in range(mNbNodes):
+    for _mNbNodesIndex in range(m_nb_nodes):
         # #ifdef GU_BV4_QUANTIZED_TREE
         br.readUByteVec(12)  # node.mAABB.mData[0].mExtents
         # else
@@ -372,26 +386,26 @@ def read_triangle_mesh(br):
 
     br.readFloat()  # mMeshData.mGeomEpsilon
     bbox_min_x = br.readFloat()  # mMeshData.mAABB.minimum.x
-    print("mMeshData.mAABB.minimum.x: " + str(bbox_min_x))
+    log("INFO", "mMeshData.mAABB.minimum.x: " + str(bbox_min_x), aloc_name)
     br.readFloat()  # mMeshData.mAABB.minimum.y
     br.readFloat()  # mMeshData.mAABB.minimum.z
     br.readFloat()  # mMeshData.mAABB.maximum.x
     br.readFloat()  # mMeshData.mAABB.maximum.y
     bbox_min_z = br.readFloat()  # mMeshData.mAABB.maximum.z
-    print("mMeshData.mAABB.maximum.z: " + str(bbox_min_z))
+    log("INFO", "mMeshData.mAABB.maximum.z: " + str(bbox_min_z), aloc_name)
 
     # if(mMeshData.mExtraTrigData)
-    mNbvTriangles = br.readInt()  # mMeshData.mNbTriangles
-    print("mNbvTriangles: " + str(mNbvTriangles))
+    m_nbv_triangles = br.readInt()  # mMeshData.mNbTriangles
+    log("INFO", "m_nbv_triangles: " + str(m_nbv_triangles), aloc_name)
 
-    br.readUByteVec(mNbvTriangles)
+    br.readUByteVec(m_nbv_triangles)
     # else
     # br.readUByteVec(4)  # 0
     # endif
 
     # GRB Write
     has_grb = (triangle_mesh.serial_flags >> 5) & 1 == 1
-    print("has_grb: " + str(has_grb))
+    log("INFO", "has_grb: " + str(has_grb), aloc_name)
 
     if has_grb:
         for _triangle_index in range(triangle_mesh.triangle_count * 3):
@@ -405,25 +419,25 @@ def read_triangle_mesh(br):
         br.readUIntVec(triangle_mesh.triangle_count)  # mMeshData.mGRB_faceRemap
         # Write midPhaseStructure BV3 -> BV32TriangleMeshBuilder::saveMidPhaseStructure
         bv32 = br.readString(4)  # "BV32"
-        print("Reading BV32: " + str(bv32) + " File Offset: " + str(br.tell()))
+        log("INFO", "Reading BV32: " + str(bv32) + " File Offset: " + str(br.tell()), aloc_name)
         br.readUByteVec(4)  # Bv32 Structure Version. If 1, the midPhaseStructure will be bigEndian
         br.readFloat()  # mData.mBV4Tree.mLocalBounds.mCenter.x
         br.readFloat()  # mData.mBV4Tree.mLocalBounds.mCenter.y
         br.readFloat()  # mData.mBV4Tree.mLocalBounds.mCenter.z
         br.readFloat()  # mData.mBV4Tree.mLocalBounds.mCenter.mExtentsMagnitude
         br.readUByteVec(4)  # mData.mBV4Tree.mInitData
-        mNbPackedNodes = br.readInt()  # mData.mBV4Tree.mNbPackedNodes
-        print("mNbPackedNodes: " + str(mNbPackedNodes))
-        mNbPackedNodesBE = br.readIntBigEndian()  # mData.mBV4Tree.mNbPackedNodes
-        print("mNbPackedNodesBE: " + str(mNbPackedNodesBE))
-        for _mNbNodesIndex in range(mNbPackedNodes):
-            mNbNodes = br.readInt(4)  # node.mNbNodes
-            # print("mNbNodes: " + str(mNbNodes))
-            mNbNodesBE = br.readIntBigEndian(4)  # node.mNbNodes
-            # print("mNbNodesBE: " + str(mNbNodesBE))
-            br.readUByteVec(4 * mNbNodes)  # node.mData
-            br.readFloatVec(4 * mNbNodes)  # node.mCenter[0].x
-            br.readFloatVec(4 * mNbNodes)  # node.mExtents[0].x
+        m_nb_packed_nodes = br.readInt()  # mData.mBV4Tree.m_nb_packed_nodes
+        log("INFO", "m_nb_packed_nodes: " + str(m_nb_packed_nodes), aloc_name)
+        m_nb_packed_nodes_be = br.readIntBigEndian()  # mData.mBV4Tree.m_nb_packed_nodes
+        log("INFO", "m_nb_packed_nodes_be: " + str(m_nb_packed_nodes_be), aloc_name)
+        for _mNbNodesIndex in range(m_nb_packed_nodes):
+            m_nb_nodes = br.readInt(4)  # node.mNbNodes
+            log("INFO", "mNbNodes: " + str(m_nb_nodes), aloc_name)
+            m_nb_nodes_be = br.readIntBigEndian(4)  # node.mNbNodes
+            log("INFO", "m_nb_nodes_be: " + str(m_nb_nodes_be), aloc_name)
+            br.readUByteVec(4 * m_nb_nodes)  # node.mData
+            br.readFloatVec(4 * m_nb_nodes)  # node.mCenter[0].x
+            br.readFloatVec(4 * m_nb_nodes)  # node.mExtents[0].x
         # End midPhaseStructure
         # End GRB Write
     return triangle_mesh
@@ -505,8 +519,52 @@ class Physics:
     def write(self, filepath):
         self.lib.Write(filepath)
 
+    def read_primitive_mesh(self, br, primitive_count, aloc_name):
+        for primitive_index in range(primitive_count):  # size of box = 52
+            primitive_type = br.readString(3).decode("utf-8")
+            log("INFO", "Loading primitive " + str(primitive_index + 1) + " / " + str(primitive_count) + " with type: " + primitive_type, aloc_name)
+            br.readUByteVec(1)
+            if primitive_type == "BOX":
+                log("INFO", "Loading Primitive Box", aloc_name)
+                primitive_box = PrimitiveBox()
+                # 31
+                primitive_box.half_extents = br.readFloatVec(3)
+                # 43
+                primitive_box.collision_layer = br.readUInt64()
+                # 51
+                primitive_box.position = br.readFloatVec(3)
+                # 63
+                primitive_box.rotation = br.readFloatVec(4)
+                # 79
+                log("INFO",  "Primitive Box: Pos: " + str(primitive_box.position[0]) + str(primitive_box.position[1]) + str(primitive_box.position[2]), aloc_name)
+                log("INFO", "Primitive Box: half_extents: " + str(primitive_box.half_extents[0]) + str(primitive_box.half_extents[1]) + str(primitive_box.half_extents[2]), aloc_name)
+                log("INFO", "Primitive Box: rotation: " + str(primitive_box.rotation[0]) + str(primitive_box.rotation[1]) + str(primitive_box.rotation[2]) + str(primitive_box.rotation[3]), aloc_name)
+                log("INFO", "Primitive Box: collision_layer: " + str(primitive_box.collision_layer), aloc_name)
+                self.primitive_boxes_count += 1
+                self.primitive_boxes.append(primitive_box)
+
+            elif primitive_type == "CAP":
+                primitive_capsule = PrimitiveCapsule()
+                primitive_capsule.radius = br.readFloat()
+                primitive_capsule.length = br.readFloat()
+                primitive_capsule.collision_layer = br.readUInt64()
+                primitive_capsule.position = br.readFloatVec(3)
+                primitive_capsule.rotation = br.readFloatVec(4)
+                self.primitive_capsules_count += 1
+                self.primitive_capsules.append(primitive_capsule)
+            elif primitive_type == "SPH":
+                primitive_sphere = PrimitiveSphere()
+                primitive_sphere.radius = br.readFloat()
+                primitive_sphere.collision_layer = br.readUInt64()
+                primitive_sphere.position = br.readFloatVec(3)
+                primitive_sphere.rotation = br.readFloatVec(4)
+                self.primitive_spheres_count += 1
+                self.primitive_spheres.append(primitive_sphere)
+
     def read(self, filepath):
-        print("Loading aloc file " + filepath)
+        aloc_name = bpy.path.display_name_from_filepath(filepath)
+
+        log("INFO", "Loading aloc file " + aloc_name, aloc_name)
 
         fp = os.fsencode(filepath)
         file = open(fp, "rb")
@@ -515,92 +573,82 @@ class Physics:
         self.data_type = br.readUInt()
         self.collision_type = br.readUInt()
         br.readUByteVec(11)  # "ID\0\0\0\u{5}PhysX"
-        br.readUByteVec(4)  # Mesh Type ("CVX ", "TRI ", "ICP ", "BCP ")
+        mesh_type = br.readString(3).decode("utf-8")  # Mesh Type ("CVX", "TRI", "ICP", "BCP")
+        log("INFO", "Mesh type: " + mesh_type, aloc_name)
+        log("INFO", "Data type: " + str(PhysicsDataType(self.data_type)), aloc_name)
+        br.readUByte()  # .
         # End of header. Current offset = 23
 
-        if self.data_type == PhysicsDataType.CONVEX_MESH:
+        if self.data_type == PhysicsDataType.CONVEX_MESH_AND_TRIANGLE_MESH:
             self.convex_mesh_count = br.readUInt()
             for convex_mesh_index in range(self.convex_mesh_count):
-                print("Loading Convex mesh " + str(convex_mesh_index) + " of " + str(self.convex_mesh_count))
-                self.convex_meshes.append(read_convex_mesh(br))
-        elif self.data_type == PhysicsDataType.TRIANGLE_MESH:
+                log("INFO", "Loading Convex mesh " + str(convex_mesh_index + 1) + " of " + str(self.convex_mesh_count), aloc_name)
+                self.convex_meshes.append(read_convex_mesh(br, aloc_name))
             self.triangle_mesh_count = br.readUInt()
             for triangle_mesh_index in range(self.triangle_mesh_count):
-                print("Loading Triangle mesh " + str(triangle_mesh_index) + " of " + str(self.triangle_mesh_count))
-                mesh = read_triangle_mesh(br)
+                log("INFO", "Loading Triangle mesh " + str(triangle_mesh_index + 1) + " of " + str(self.triangle_mesh_count), aloc_name)
+                mesh = read_triangle_mesh(aloc_name, br)
                 if mesh != -1:
                     self.triangle_meshes.append(mesh)
                 else:
-                    print("[ERROR] Can't continue loading current ALOC. Returning loaded meshes.")
+                    log("ERROR", "Can't continue loading current ALOC " + aloc_name + ". Returning loaded meshes.", aloc_name)
                     self.triangle_mesh_count = triangle_mesh_index
                     return self.triangle_meshes
-        elif self.data_type == PhysicsDataType.CONVEX_MESH_AND_TRIANGLE_MESH:
+        elif self.data_type == PhysicsDataType.CONVEX_MESH_AND_PRIMITIVE:
+            log("INFO", "Loading Convex Mesh and Primitives for ALOC: " + aloc_name, aloc_name)
             self.convex_mesh_count = br.readUInt()
             for convex_mesh_index in range(self.convex_mesh_count):
-                print("Loading Convex mesh " + str(convex_mesh_index) + " of " + str(self.convex_mesh_count))
-                self.convex_meshes.append(read_convex_mesh(br))
+                log("INFO", "Loading Convex mesh " + str(convex_mesh_index + 1) + " of " + str(self.convex_mesh_count), aloc_name)
+                self.convex_meshes.append(read_convex_mesh(br, aloc_name))
+            br.readString(3).decode("utf-8")  # Mesh Type ("ICP")
+            br.readUByte()  # .
+            log("INFO", "Done loading convex meshes. Reading primitive meshes. File offset: " + str(br.tell()), aloc_name)
+            self.primitive_count = br.readUInt()
+            log("INFO", "Loading Primitive mesh", aloc_name)
+            self.read_primitive_mesh(br, self.primitive_count, aloc_name)
+        elif self.data_type == PhysicsDataType.TRIANGLE_MESH_AND_PRIMITIVE:
             self.triangle_mesh_count = br.readUInt()
             for triangle_mesh_index in range(self.triangle_mesh_count):
-                print("Loading Triangle mesh " + str(triangle_mesh_index) + " of " + str(self.triangle_mesh_count))
-                mesh = read_triangle_mesh(br)
-                if mesh != -1:
-                    self.triangle_meshes.append(mesh)
-                else:
-                    print("[ERROR] Can't continue loading current ALOC. Returning loaded meshes.")
-                    self.triangle_mesh_count = triangle_mesh_index
-                    return self.triangle_meshes
-        elif self.data_type == PhysicsDataType.PRIMITIVE:
-            print("Found primitive")
-            primitive_count = br.readUInt()
-            # 27
-            for _ in range(primitive_count):  # size of box = 52
-                primitive_type = br.readString(3).decode("utf-8")
-                print("Primitive type: " + primitive_type)
-                br.readUByteVec(1)
-                if primitive_type == "BOX":
-                    print("Loading Primitive Box")
-                    primitive_box = PrimitiveBox()
-                    # 31
-                    primitive_box.half_extents = br.readFloatVec(3)
-                    # 43
-                    primitive_box.collision_layer = br.readUInt64()
-                    # 51
-                    primitive_box.position = br.readFloatVec(3)
-                    # 63
-                    primitive_box.rotation = br.readFloatVec(4)
-                    # 79
-                    print(
-                        "Primitive Box: Pos: " + str(primitive_box.position[0]) + str(primitive_box.position[1]) + str(
-                            primitive_box.position[2]))
-                    print("Primitive Box: half_extents: " + str(primitive_box.half_extents[0]) + str(
-                        primitive_box.half_extents[1]) + str(primitive_box.half_extents[2]))
-                    print("Primitive Box: rotation: " + str(primitive_box.rotation[0]) + str(
-                        primitive_box.rotation[1]) + str(primitive_box.rotation[2]) + str(primitive_box.rotation[3]))
-                    print("Primitive Box: collision_layer: " + str(primitive_box.collision_layer))
-                    self.primitive_boxes_count += 1
-                    self.primitive_boxes.append(primitive_box)
-
-                elif primitive_type == "CAP":
-                    primitive_capsule = PrimitiveCapsule()
-                    primitive_capsule.radius = br.readFloat()
-                    primitive_capsule.length = br.readFloat()
-                    primitive_capsule.collision_layer = br.readUInt64()
-                    primitive_capsule.position = br.readFloatVec(3)
-                    primitive_capsule.rotation = br.readFloatVec(4)
-                    self.primitive_capsules_count += 1
-                    self.primitive_capsules.append(primitive_capsule)
-                elif primitive_type == "SPH":
-                    primitive_sphere = PrimitiveSphere()
-                    primitive_sphere.radius = br.readFloat()
-                    primitive_sphere.collision_layer = br.readUInt64()
-                    primitive_sphere.position = br.readFloatVec(3)
-                    primitive_sphere.rotation = br.readFloatVec(4)
-                    self.primitive_spheres_count += 1
-                    self.primitive_spheres.append(primitive_sphere)
-            self.primitive_count = self.primitive_capsules_count + self.primitive_boxes_count + self.primitive_spheres_count
+                log("INFO", "Loading Triangle mesh " + str(triangle_mesh_index + 1) + " of " + str(self.triangle_mesh_count), aloc_name)
+                self.triangle_meshes.append(read_triangle_mesh(aloc_name, br))
+            br.readString(3).decode("utf-8")  # Mesh Type ("ICP")
+            br.readUByte()  # .
+            self.primitive_count = br.readUInt()
+            log("INFO", "Loading Primitive mesh", aloc_name)
+            self.read_primitive_mesh(br, self.primitive_count, aloc_name)
         elif self.data_type == PhysicsDataType.SHATTER_LINKED:
             self.shatter_count = br.readUInt()
-
+        elif mesh_type == "CVX":
+            if self.data_type != PhysicsDataType.CONVEX_MESH:
+                _ = -1
+                log("WARNING", "data_type " + str(PhysicsDataType(self.data_type)) + " does not match magic string " + mesh_type + " for " + aloc_name, aloc_name)
+            self.convex_mesh_count = br.readUInt()
+            for convex_mesh_index in range(self.convex_mesh_count):
+                log("INFO", "Loading Convex mesh " + str(convex_mesh_index + 1) + " of " + str(self.convex_mesh_count), aloc_name)
+                self.convex_meshes.append(read_convex_mesh(br, aloc_name))
+        elif mesh_type == "TRI":
+            if self.data_type != PhysicsDataType.TRIANGLE_MESH:
+                _ = -1
+                log("WARNING", "data_type " + str(PhysicsDataType(self.data_type)) + " does not match magic string " + mesh_type + " for " + aloc_name, aloc_name)
+            self.triangle_mesh_count = br.readUInt()
+            for triangle_mesh_index in range(self.triangle_mesh_count):
+                log("INFO", "Loading Triangle mesh " + str(triangle_mesh_index + 1) + " of " + str(self.triangle_mesh_count), aloc_name)
+                mesh = read_triangle_mesh(aloc_name, br)
+                if mesh != -1:
+                    self.triangle_meshes.append(mesh)
+                else:
+                    log("ERROR", "Can't continue loading current ALOC: " + aloc_name + ". Returning loaded meshes.", aloc_name)
+                    self.triangle_mesh_count = triangle_mesh_index
+                    return self.triangle_meshes
+        elif mesh_type == "ICP":
+            if self.data_type != PhysicsDataType.PRIMITIVE:
+                _ = -1
+                log("WARNING", "data_type " + str(PhysicsDataType(self.data_type)) + " does not match magic string " + mesh_type + " for " + aloc_name, aloc_name)
+            log("INFO", "Found primitive", aloc_name)
+            primitive_count = br.readUInt()
+            # 27
+            self.read_primitive_mesh(br, primitive_count, aloc_name)
+            self.primitive_count = self.primitive_capsules_count + self.primitive_boxes_count + self.primitive_spheres_count
         br.close()
 
     def set_collision_settings(self, settings):
