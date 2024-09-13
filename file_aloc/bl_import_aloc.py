@@ -57,10 +57,6 @@ def link_new_object(aloc_name, context):
     obj.select_set(True)
 
 
-def rot(x, y, z):
-    return x * math.pi / 2, z * math.pi / 2, y * math.pi / 2
-
-
 def collidable_layer(collision_layer):
     excluded_collision_layer_types = [
         # PhysicsCollisionLayerType.SHOT_ONLY_COLLISION,
@@ -155,6 +151,8 @@ def load_aloc(operator, context, filepath, include_non_collidable_layers):
                 rx = box.rotation[0]
                 ry = box.rotation[1]
                 rz = box.rotation[2]
+                if rx != 0 or ry != 0 or rz != 0:
+                    print("Box has rotation value. Hash: " + aloc_name)
                 sx = box.half_extents[0]
                 sy = box.half_extents[1]
                 sz = box.half_extents[2]

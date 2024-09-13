@@ -133,9 +133,9 @@ class PrimitiveSphere:
 
 
 def log(level, msg, filter_field):
-    enabled = ["INFO", "WARNING", "ERROR"]
+    enabled = ["ERROR"]  # "INFO", "WARNING", "ERROR"]
     if level in enabled:  # and filter_field == "0031CDA11AFD98A9":
-        print("[" + level + "] " + filter_field + ": " + msg)
+        print("[" + str(level) + "] " + str(filter_field) + ": " + str(msg))
 
         
 def read_convex_mesh(br, aloc_name):
