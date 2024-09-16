@@ -69,7 +69,7 @@ def load_scenario(operator, context, collection, path_to_alocs_json):
             continue
         aloc_path = os.path.join(path_to_aloc_dir, aloc_filename)
 
-        # print("Loading aloc:" + aloc_hash)
+        print("Loading aloc:" + aloc_hash)
         # try:
         collision_type, objects = bl_import_aloc.load_aloc(
             None, context, aloc_path, False
@@ -94,8 +94,7 @@ def load_scenario(operator, context, collection, path_to_alocs_json):
             p = transform["position"]
             r = transform["rotate"]
             s = transform["scale"]
-            r["roll"] = math.pi * 2 - r["roll"]
-            # print("Transforming aloc:" + aloc_hash + " #" + str(i))
+            print("Transforming aloc:" + aloc_hash + " #" + str(i))
             for obj in objects:
                 if i != 0:
                     cur = obj.copy()
@@ -104,11 +103,12 @@ def load_scenario(operator, context, collection, path_to_alocs_json):
                 collection.objects.link(cur)
                 cur.select_set(True)
                 cur.scale = mathutils.Vector((s["x"], s["y"], s["z"]))
-                cur.rotation_euler = Euler((-r["yaw"], -r["pitch"], -r["roll"]), 'XYZ')
+                cur.rotation_mode = 'QUATERNION'
+                cur.rotation_quaternion = (r["w"], r["x"], r["y"], r["z"])
                 cur.location = mathutils.Vector((p["x"], p["y"], p["z"]))
                 cur.select_set(False)
 
-    # print("Creating PF Box")
+    print("Creating PF Box")
     mesh = bpy.data.meshes.new("PF_BOX")
     pb_box_obj = bpy.data.objects.new("PF_BOX", mesh)
     bm = bmesh.new()
@@ -147,8 +147,7 @@ def load_scenario(operator, context, collection, path_to_alocs_json):
         p = transform["position"]
         r = transform["rotate"]
         s = transform["scale"]
-        r["roll"] = math.pi * 2 - r["roll"]
-        # print("Transforming pf box:" + " #" + str(i))
+        print("Transforming pf box:" + " #" + str(i))
 
         if i != 0:
             cur = pb_box_obj.copy()
@@ -157,7 +156,8 @@ def load_scenario(operator, context, collection, path_to_alocs_json):
         collection.objects.link(cur)
         cur.select_set(True)
         cur.scale = mathutils.Vector((s["x"], s["y"], s["z"]))
-        cur.rotation_euler = Euler((-r["yaw"], -r["pitch"], -r["roll"]), 'XYZ')
+        cur.rotation_mode = 'QUATERNION'
+        cur.rotation_quaternion = (r["w"], r["x"], r["y"], r["z"])
         cur.location = mathutils.Vector((p["x"], p["y"], p["z"]))
         cur.select_set(False)
     end = timer()
