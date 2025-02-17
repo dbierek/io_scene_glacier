@@ -91,7 +91,7 @@ def load_scenario(operator, context, collection, path_to_alocs_json):
 
         log("INFO", "Loading aloc: " + aloc_hash, "load_scenario")
         try:
-            collision_type, objects = load_aloc(
+            collision_type, objects = bl_import_aloc.load_aloc(
                 None, context, aloc_path, False
             )
         except struct.error as err:
