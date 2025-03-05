@@ -98,7 +98,50 @@ def load_aloc(operator, context, filepath, include_non_collidable_layers):
     if aloc.collision_type == PhysicsCollisionType.RIGIDBODY:
         log("DEBUG", "Skipping RigidBody ALOC " + aloc_name, "load_aloc")
         return PhysicsCollisionType.RIGIDBODY, objects
-    if aloc.data_type == aloc_format.PhysicsDataType.CONVEX_MESH:
+    if aloc.data_type == aloc_format.PhysicsDataType.CONVEX_MESH_AND_TRIANGLE_MESH:
+        log("DEBUG", "Converting Convex Mesh and Triangle Mesh ALOC " + aloc_name + " to blender mesh", "load_aloc")
+        for mesh_index in range(aloc.convex_mesh_count):
+            log("DEBUG", " " + aloc_name + " convex mesh " + str(mesh_index) + " / " + str(aloc.convex_mesh_count), "load_aloc")
+            obj = create_new_object(aloc_name, aloc.collision_type, aloc.data_type)
+            bm = bmesh.new()
+            m = aloc.convex_meshes[mesh_index]
+            if include_non_collidable_layers or collidable_layer(m.collision_layer):
+                for v in m.vertices:
+                    bm.verts.new(v)
+            else:
+                _ = -1
+                log("DEBUG", "+++++++++++++++++++++ Skipping Non-collidable ALOC mesh: " + aloc_name + " with mesh index: " + str(mesh_index) + " and collision layer type: " + str(m.collision_layer) + " +++++++++++++", "load_aloc")
+            mesh = obj.data
+            bm.from_mesh(mesh)
+            convex_hull(bm)
+            to_mesh(bm, mesh, obj, collection, context)
+            objects.append(obj)
+        for mesh_index in range(aloc.triangle_mesh_count):
+            obj = create_new_object(aloc_name, aloc.collision_type, aloc.data_type)
+            bm = bmesh.new()
+            m = aloc.triangle_meshes[mesh_index]
+            bmv = []
+            if include_non_collidable_layers or collidable_layer(m.collision_layer):
+                for v in m.vertices:
+                    bmv.append(bm.verts.new(v))
+                d = m.triangle_data
+                for i in range(0, len(d), 3):
+                    face = (bmv[d[i]], bmv[d[i + 1]], bmv[d[i + 2]])
+                    try:
+                        bm.faces.new(face)
+                    except ValueError as err:
+                        _ = -1
+                        log("DEBUG", "[ERROR] Could not add face to TriangleMesh: " + str(err), "load_aloc")
+            else:
+                _ = -1
+                log("DEBUG", "+++++++++++++++++++++ Skipping Non-collidable ALOC mesh: " + aloc_name + " with mesh index: " + str(mesh_index) + " and collision layer type: " + str(m.collision_layer) + " +++++++++++++", "load_aloc")
+
+            mesh = obj.data
+            to_mesh(bm, mesh, obj, collection, context)
+
+            objects.append(obj)
+
+    elif aloc.data_type == aloc_format.PhysicsDataType.CONVEX_MESH:
         log("DEBUG", "Converting Convex Mesh ALOC " + aloc_name + " to blender mesh", "load_aloc")
         for mesh_index in range(aloc.convex_mesh_count):
             log("DEBUG", " " + aloc_name + " convex mesh " + str(mesh_index) + " / " + str(aloc.convex_mesh_count), "load_aloc")
@@ -160,7 +203,7 @@ def load_aloc(operator, context, filepath, include_non_collidable_layers):
                 ry = box.rotation[1]
                 rz = box.rotation[2]
                 if rx != 0 or ry != 0 or rz != 0:
-                    print("Box has rotation value. Hash: " + aloc_name)
+                    log("DEBUG", "Box has rotation value. Hash: " + aloc_name, "load_aloc")
                 sx = box.half_extents[0]
                 sy = box.half_extents[1]
                 sz = box.half_extents[2]

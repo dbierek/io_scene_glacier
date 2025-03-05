@@ -574,8 +574,8 @@ class Physics:
         self.collision_type = br.readUInt()
         br.readUByteVec(11)  # "ID\0\0\0\u{5}PhysX"
         mesh_type = br.readString(3).decode("utf-8")  # Mesh Type ("CVX", "TRI", "ICP", "BCP")
-        log("DEBUG", "Mesh type: " + mesh_type, aloc_name)
         log("DEBUG", "Data type: " + str(PhysicsDataType(self.data_type)), aloc_name)
+        log("DEBUG", "Current Mesh type: " + mesh_type, aloc_name)
         br.readUByte()  # .
         # try:
         #     br.readUByte()  # .
@@ -589,6 +589,9 @@ class Physics:
             for convex_mesh_index in range(self.convex_mesh_count):
                 log("DEBUG", "Loading Convex mesh " + str(convex_mesh_index + 1) + " of " + str(self.convex_mesh_count), aloc_name)
                 self.convex_meshes.append(read_convex_mesh(br, aloc_name))
+            mesh_type = br.readString(3).decode("utf-8")  # Mesh Type ("TRI")
+            br.readUByte()  # .
+            log("DEBUG", "Current Mesh type: " + mesh_type, aloc_name)
             self.triangle_mesh_count = br.readUInt()
             for triangle_mesh_index in range(self.triangle_mesh_count):
                 log("DEBUG", "Loading Triangle mesh " + str(triangle_mesh_index + 1) + " of " + str(self.triangle_mesh_count), aloc_name)
