@@ -3,9 +3,8 @@ import os
 import bpy
 import sys
 import ctypes
-
 from .. import io_binary
-
+import platform
 
 class PhysicsDataType(enum.IntEnum):
     NONE = 0
@@ -468,10 +467,18 @@ class Physics:
                     + os.pathsep
                     + os.environ["PATH"]
             )
-        self.lib = ctypes.CDLL(
-            os.path.abspath(os.path.join(os.path.dirname(__file__), "alocgen.dll")),
-            winmode=0,
-        )
+        if platform.system() == "Linux":
+            self.lib = ctypes.CDLL(
+                os.path.abspath(os.path.join(os.path.dirname(__file__), "libalocgen.so")),
+                winmode=0,
+            )
+        elif platform.system() == "Windows":
+            self.lib = ctypes.CDLL(
+                os.path.abspath(os.path.join(os.path.dirname(__file__), "alocgen.dll")),
+                winmode=0,
+            )
+        else:
+            print(f"\n\n\n\nError: {platform.system()} is unsupported\n\n\n\n")
         self.lib.AddConvexMesh.argtypes = (
             ctypes.c_uint32,
             ctypes.POINTER(ctypes.c_float),

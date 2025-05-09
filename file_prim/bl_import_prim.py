@@ -63,7 +63,7 @@ def load_prim(operator, context, collection, filepath, use_rig, rig_filepath):
 
 def load_prim_coli(prim, prim_name: str, mesh_index: int):
     """Testing class for the prim BoxColi"""
-    for boxColi in prim.header.object_table[mesh_index].sub_mesh.collision.box_entries:
+    for b, boxColi in enumerate(prim.header.object_table[mesh_index].sub_mesh.collision.box_entries):
         x, y, z = boxColi.min
         x1, y1, z1 = boxColi.max
 
@@ -94,7 +94,7 @@ def load_prim_coli(prim, prim_name: str, mesh_index: int):
         )
         ob = bpy.context.object
         me = ob.data
-        ob.name = str(prim_name) + "_" + str(mesh_index) + "_Coli"
+        ob.name = str(prim_name) + "_" + str(mesh_index) + "_Coli_" + str(b)
         me.name = "CUBEMESH"
 
 
@@ -212,8 +212,8 @@ def load_prim_mesh(prim, borg, prim_name: str, mesh_index: int):
     mesh.prim_properties.lod = mask
 
     mesh.prim_properties.material_id = prim_mesh_obj.material_id
-    mesh.prim_properties.prim_type = str(prim_mesh_obj.prims.prim_header.type)
-    mesh.prim_properties.prim_sub_type = str(prim_mesh_obj.sub_type)
+    mesh.prim_properties.prim_type = str(prim_mesh_obj.prims.prim_header.type.name)
+    mesh.prim_properties.prim_sub_type = str(prim_mesh_obj.sub_type.name)
 
     mesh.prim_properties.axis_lock = [
         prim_mesh_obj.properties.isXaxisLocked(),

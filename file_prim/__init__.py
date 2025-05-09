@@ -107,7 +107,7 @@ class ImportPRIM(bpy.types.Operator, ImportHelper):
         from . import bl_import_prim
 
         prim_paths = [
-            "%s\\%s" % (os.path.dirname(self.filepath), meshPaths.name)
+            os.path.join(os.path.dirname(self.filepath), meshPaths.name)
             for meshPaths in self.files
         ]
         for prim_path in prim_paths:
@@ -498,25 +498,25 @@ class PrimProperties(PropertyGroup):
         name="Type",
         description="The type of the prim",
         items=[
-            ("PrimType.Unknown", "Unknown", ""),
-            ("PrimType.ObjectHeader", "Object Header", "The header of an Object"),
-            ("PrimType.Mesh", "Mesh", ""),
-            ("PrimType.Decal", "Decal", ""),
-            ("PrimType.Sprites", "Sprite", ""),
-            ("PrimType.Shape", "Shape", ""),
+            ("Unknown", "Unknown", ""),
+            ("ObjectHeader", "Object Header", "The header of an Object"),
+            ("Mesh", "Mesh", ""),
+            ("Decal", "Decal", ""),
+            ("Sprites", "Sprite", ""),
+            ("Shape", "Shape", ""),
         ],
-        default="PrimType.Mesh",
+        default="Mesh",
     )
 
     prim_subtype: EnumProperty(
         name="Sub-Type",
         description="The type of the prim",
         items=[
-            ("PrimObjectSubtype.Standard", "Standard", ""),
-            ("PrimObjectSubtype.Linked", "Linked", ""),
-            ("PrimObjectSubtype.Weighted", "Weighted", ""),
+            ("Standard", "Standard", ""),
+            ("Linked", "Linked", ""),
+            ("Weighted", "Weighted", ""),
         ],
-        default="PrimObjectSubtype.Standard",
+        default="Standard",
     )
 
     axis_lock: BoolVectorProperty(
@@ -661,8 +661,9 @@ class PrimPhysicsGenerateBoxCollider(Operator):
         cube.parent = parent
         cube.display_type = "WIRE"
         collection = current_obj.users_collection[0]
-        collection.objects.link(cube)
-        bpy.context.collection.objects.unlink(cube)
+        if context.collection != collection:
+            collection.objects.link(cube)
+            bpy.context.collection.objects.unlink(cube)
         return {"FINISHED"}
 
 
@@ -679,8 +680,9 @@ class PrimPhysicsGenerateCapsuleCollider(Operator):
         cylinder.parent = parent
         cylinder.display_type = "WIRE"
         collection = current_obj.users_collection[0]
-        collection.objects.link(cylinder)
-        bpy.context.collection.objects.unlink(cylinder)
+        if context.collection != collection:
+            collection.objects.link(cylinder)
+            bpy.context.collection.objects.unlink(cylinder)
         return {"FINISHED"}
 
 
@@ -697,8 +699,9 @@ class PrimPhysicsGenerateSphereCollider(Operator):
         sphere.parent = parent
         sphere.display_type = "WIRE"
         collection = current_obj.users_collection[0]
-        collection.objects.link(sphere)
-        bpy.context.collection.objects.unlink(sphere)
+        if context.collection != collection:
+            collection.objects.link(sphere)
+            bpy.context.collection.objects.unlink(sphere)
 
         return {"FINISHED"}
 
